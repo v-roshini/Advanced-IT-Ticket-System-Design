@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int             @id @default(autoincrement())
+  full_name  String
+  email      String          @unique
+  password   String
+  phone      String?
+  role       Role            @default(client)
+  created_at DateTime        @default(now())
+  comments   TicketComment[]
+  tickets    Ticket[]        @relation("AgentTickets")
+  work_logs  WorkLog[]
+
+  @@map("users")
+}
+
+model Customer {
+  id         Int           @id @default(autoincrement())
+  name       String
+  company    String?
+  email      String?
+  phone      String?
+  type       CustomerType  @default(Monthly)
+  created_at DateTime      @default(now())
+  billing    Billing[]
+  contracts  ContractAMC[]
+
+  @@map("customers")
+}
+
+model Ticket {
+  id            Int             @id @default(autoincrement())
+  ticket_no     String          @unique
+  customer_name String?
+  company       String?
+  issue_title   String
+  description   String?         @db.Text
+  priority      Priority        @default(Medium)
+  category      String?
+  project       String?
+  status        TicketStatus    @default(Open)
+  agent_id      Int?
+  created_at    DateTime        @default(now())
+  comments      TicketComment[]
+  agent         User?           @relation("AgentTickets", fields: [agent_id], references: [id])
+  work_logs     WorkLog[]
+
+  @@index([agent_id], map: "tickets_agent_id_fkey")
+  @@map("tickets")
+}
+
+model TicketComment {
+  id         Int      @id @default(autoincrement())
+  ticket_id  Int
+  user_id    Int?
+  message    String   @db.Text
+  created_at DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [user_id], references: [id])
+
+  @@index([ticket_id], map: "ticket_comments_ticket_id_fkey")
+  @@index([user_id], map: "ticket_comments_user_id_fkey")
+  @@map("ticket_comments")
+}
+
+model WorkLog {
+  id          Int      @id @default(autoincrement())
+  ticket_id   Int?
+  agent_id    Int?
+  start_time  String?
+  end_time    String?
+  time_spent  String?
+  description String?  @db.Text
+  created_at  DateTime @default(now())
+  agent       User?    @relation(fields: [agent_id], references: [id])
+  ticket      Ticket?  @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([agent_id], map: "work_logs_agent_id_fkey")
+  @@index([ticket_id], map: "work_logs_ticket_id_fkey")
+  @@map("work_logs")
+}
+
+model ContractAMC {
+  id            Int      @id @default(autoincrement())
+  customer_id   Int
+  company_name  String?
+  start_date    DateTime @db.Date
+  end_date      DateTime @db.Date
+  monthly_hours Int      @default(10)
+  priority_sla  String?
+  hours_used    Int      @default(0)
+  created_at    DateTime @default(now())
+  customer      Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id], map: "contracts_amc_customer_id_fkey")
+  @@map("contracts_amc")
+}
+
+model Billing {
+  id           Int       @id @default(autoincrement())
+  customer_id  Int
+  hours_used   Float?
+  hourly_rate  Float?
+  total_amount Float?
+  month        String?
+  created_at   DateTime  @default(now())
+  customer     Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  invoices     Invoice[]
+
+  @@index([customer_id], map: "billing_customer_id_fkey")
+  @@map("billing")
+}
+
+model Invoice {
+  id             Int           @id @default(autoincrement())
+  billing_id     Int
+  invoice_number String?
+  status         InvoiceStatus @default(Pending)
+  created_at     DateTime      @default(now())
+  billing        Billing       @relation(fields: [billing_id], references: [id], onDelete: Cascade)
+
+  @@index([billing_id], map: "invoices_billing_id_fkey")
+  @@map("invoices")
+}
+
+enum Role {
+  admin
+  agent
+  client
+}
+
+enum CustomerType {
+  AMC
+  Monthly
+}
+
+enum Priority {
+  Critical
+  High
+  Medium
+  Low
+}
+
+enum TicketStatus {
+  Open
+  In_Progress @map("In Progress")
+  Resolved
+}
+
+enum InvoiceStatus {
+  Pending
+  Paid
+}

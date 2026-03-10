@@ -1,0 +1,85 @@
+# Linotec Ticket System: Project Analysis & Idea Pipeline
+
+## 1. Project Overview & Current Coverage
+The **Linotec Ticket System** is a full-stack IT Service Management (ITSM) and Support Ticketing platform. It is designed to handle the entire lifecycle of customer support, from issue reporting to resolution, time tracking, and billing.
+
+### **Tech Stack**
+*   **Frontend**: React 19, Tailwind CSS, React Router, Axios
+*   **Backend**: Node.js, Express.js
+*   **Database**: MySQL, Prisma ORM (v6.19.0)
+*   **AI Integration**: OpenRouter / Google Gemini (for AI Chat and Ticket actions)
+*   **Authentication**: JWT, bcrypt
+
+### **Covered Features (Current State)**
+Based on the codebase analysis (`schema.prisma`, `server.js`, `App.jsx`), the following core modules are fully structured and covered:
+1.  **User Management**: Role-based access control (`admin`, `agent`, `client`).
+2.  **Customer & AMC Management**: Tracks customers and their service contracts (Annual Maintenance Contracts - AMC vs. Monthly).
+3.  **Ticketing System**: Creation, categorization, prioritization, assignment to agents, and status tracking (Open, In Progress, Resolved).
+4.  **Communication**: Ticket comments for internal/external dialogue.
+5.  **Work Logging**: Agents log start/end times and descriptions for work done on tickets.
+6.  **Billing & Invoicing**: Automated calculation of billable hours against AMC limits and invoice generation.
+7.  **AI Assistant**: Dedicated `/ai-chat` interface and AI capabilities integrated into the workflow.
+
+---
+
+## 2. Operational Pipelines (How the System Works)
+
+The "Idea Pipeline" of how entities flow through the system is structured into four main operational pipelines:
+
+### **A. Customer Onboarding & AMC Pipeline**
+```mermaid
+graph TD
+    A[Add Customer] --> B{Service Type?}
+    B -->|AMC| C[Create AMC Contract]
+    B -->|Monthly| D[Standard Billing Profile]
+    C --> E[Set SLA & Monthly Hours]
+```
+*   **Flow**: A `Customer` is registered in the system. If they have an AMC, a `ContractAMC` record is created defining their monthly allotted hours and priorities. 
+
+### **B. Ticket Lifecycle Pipeline**
+```mermaid
+graph TD
+    A[Ticket Created] --> B[Assigned to Agent]
+    B --> C[Status: In Progress]
+    C --> D[Agent Adds Comments]
+    D --> E[Agent Logs Work Time]
+    E --> F[Status: Resolved]
+```
+*   **Flow**: A client or agent creates a `Ticket`. An `Agent` is assigned. The agent works on it, records communication in `TicketComment`, tracks time via `WorkLog`, and eventually resolves the ticket.
+
+### **C. Billing & Invoicing Pipeline**
+```mermaid
+graph TD
+    A[WorkLogs Accumulated] --> B[End of Month]
+    B --> C[Calculate Hours Used]
+    C --> D{Exceeds AMC Hours?}
+    D -->|Yes| E[Bill Overage at Hourly Rate]
+    D -->|No| F[No Extra Charge]
+    E --> G[Generate Invoice]
+    F --> G
+```
+*   **Flow**: All `WorkLog` entries for a customer are aggregated in a `Billing` cycle. It checks against `ContractAMC.monthly_hours`. Invoices are generated for the surplus or standard monthly rate.
+
+### **D. AI Assistance Pipeline**
+```mermaid
+graph TD
+    A[AI Triggered] --> B[Backend /ai Route]
+    B --> C[LLM Processing Gemini/OpenRouter]
+    C --> D[Response generation / Ticket classification]
+```
+
+---
+
+## 3. Future Pipeline (Roadmap for Next Phases)
+
+While the foundational data models and frontend pages are built, here is a recommended pipeline of features to elevate the platform:
+
+1.  **Phase 1: Advanced Notifications & SLA Alerts (Immediate Next Step)**
+    *   *Idea*: Implement email notifications (via Nodemailer/SendGrid) when a ticket is assigned, updated, or resolved.
+    *   *Idea*: SLA Breach warnings if a high-priority ticket is untouched for X hours.
+2.  **Phase 2: Dashboard Analytics & Reporting**
+    *   *Idea*: Visual charts on the `AdminPanel` and `Dashboard` showing ticket resolution times, agent performance, and monthly revenue. 
+3.  **Phase 3: Customer Portal Enhancements**
+    *   *Idea*: A restricted view where `client` users can log in, view only their tickets, and approve invoices.
+4.  **Phase 4: CI/CD Deployment Pipeline**
+    *   *Idea*: Setup GitHub Actions for automated testing and deployment to platforms like Vercel (Frontend) and Render/Heroku (Backend).

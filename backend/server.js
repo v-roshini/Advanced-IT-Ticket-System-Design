@@ -1,0 +1,44 @@
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+app.use("/auth", require("./routes/auth"));
+app.use("/tickets", require("./routes/tickets"));
+app.use("/customers", require("./routes/customers"));
+app.use("/worklog", require("./routes/worklog"));
+app.use("/agents", require("./routes/agents"));
+app.use("/amc", require("./routes/amc"));
+app.use("/api/billing", require("./routes/billing"));
+app.use("/api/invoices", require("./routes/invoices"));
+app.use("/ai", require("./routes/ai"));
+
+app.get("/", (req, res) => {
+    res.json({ message: "✅ Linotec API is running!" });
+});
+
+process.on("uncaughtException", (err) => {
+    console.error("❌ Error:", err.message);
+});
+
+process.on("unhandledRejection", (err) => {
+    console.error("❌ Unhandled Rejection:", err.message);
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, async () => {
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    const prisma = require("./config/prisma");
+    try {
+        await prisma.$connect();
+        console.log("✅ Database Connected Successfully (Prisma)!");
+    } catch (err) {
+        console.error("❌ Database Connection Failed:", err.message);
+    }
+});
