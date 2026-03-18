@@ -2,10 +2,27 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../config/prisma");
 const { verifyToken } = require("../middleware/authMiddleware");
+const { checkPermission } = require("../middleware/permissionMiddleware");
+
+// Helper to get customer ID for a portal user
+async function getCustomerId(userId) {
+    const customer = await prisma.customer.findUnique({
+        where: { portal_user_id: userId }
+    });
+    return customer?.id;
+}
 
 router.get("/", verifyToken, async (req, res) => {
   try {
+    let whereClause = {};
+    if (req.user.role === 'client') {
+        const custId = await getCustomerId(req.user.id);
+        if (!custId) return res.status(403).json({ message: "Customer profile not found" });
+        whereClause.customer_id = custId;
+    }
+
     const bills = await prisma.billing.findMany({
+      where: whereClause,
       orderBy: { created_at: "desc" },
       include: {
         customer: { select: { name: true, company: true } },
@@ -18,8 +35,23 @@ router.get("/", verifyToken, async (req, res) => {
   }
 });
 
-router.post("/", verifyToken, async (req, res) => {
-  const { customer_id, hours_used, hourly_rate, total_amount, month } = req.body;
+router.get("/unbilled/:customerId", verifyToken, async (req, res) => {
+  try {
+    const logs = await prisma.workLog.findMany({
+      where: {
+        ticket: { customer_id: Number(req.params.customerId) },
+        is_billed: false,
+      },
+      include: { ticket: true, agent: true }
+    });
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (req, res) => {
+  const { customer_id, hours_used, hourly_rate, total_amount, month, log_ids } = req.body;
   try {
     const bill = await prisma.billing.create({
       data: {
@@ -30,6 +62,14 @@ router.post("/", verifyToken, async (req, res) => {
         month,
       },
     });
+
+    if (log_ids && log_ids.length > 0) {
+      await prisma.workLog.updateMany({
+        where: { id: { in: log_ids.map(id => Number(id)) } },
+        data: { is_billed: true, billing_id: bill.id }
+      });
+    }
+
     res.status(201).json({ message: "Bill created!", bill });
   } catch (err) {
     res.status(500).json({ message: err.message });

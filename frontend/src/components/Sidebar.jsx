@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import {
     FiGrid, FiTag, FiUsers, FiFileText, FiDollarSign,
-    FiClock, FiShield, FiMessageSquare, FiLogOut, FiZap,
+    FiClock, FiShield, FiMessageSquare, FiLogOut, FiZap, FiRefreshCw
 } from "react-icons/fi";
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
     { label: "Billing", path: "/billing", icon: <FiDollarSign /> },
     { label: "Work Log", path: "/worklog", icon: <FiClock /> },
     { label: "Admin Panel", path: "/admin", icon: <FiShield /> },
+    { label: "Renewals", path: "/renewals", icon: <FiRefreshCw /> },
     { label: "AI Chat", path: "/ai-chat", icon: <FiMessageSquare />, badge: "AI" },
 ];
 
@@ -47,10 +48,10 @@ export default function Sidebar() {
                     .filter((item) => {
                         if (user.role === "admin") return true;
                         if (user.role === "agent") {
-                            return ["Dashboard", "Tickets", "Work Log"].includes(item.label);
+                            return ["Dashboard", "Tickets", "Work Log", "Renewals"].includes(item.label);
                         }
                         if (user.role === "client") {
-                            return ["Dashboard", "Tickets", "AI Chat"].includes(item.label);
+                            return ["Dashboard", "Tickets", "AI Chat", "Renewals", "Billing"].includes(item.label);
                         }
                         return false;
                     })
@@ -59,7 +60,16 @@ export default function Sidebar() {
                         return (
                             <button
                                 key={item.path}
-                                onClick={() => navigate(item.path)}
+                                onClick={() => {
+                                    if (user.role === 'client') {
+                                        if (item.label === 'Dashboard') navigate('/customer/dashboard');
+                                        else if (item.label === 'Tickets') navigate('/customer/tickets');
+                                        else if (item.label === 'Renewals') navigate('/customer/renewals');
+                                        else if (item.label === 'Billing') navigate('/customer/billing');
+                                        else navigate(item.path);
+                                    }
+                                    else navigate(item.path);
+                                }}
                                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition w-full text-left ${active
                                     ? "bg-blue-700 text-white"
                                     : "text-blue-200 hover:bg-blue-800 hover:text-white"

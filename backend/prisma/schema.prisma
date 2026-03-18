@@ -8,67 +8,138 @@ datasource db {
 }
 
 model User {
-  id         Int             @id @default(autoincrement())
-  full_name  String
-  email      String          @unique
-  password   String
-  phone      String?
-  role       Role            @default(client)
-  created_at DateTime        @default(now())
-  comments   TicketComment[]
-  tickets    Ticket[]        @relation("AgentTickets")
-  work_logs  WorkLog[]
+  id                  Int               @id @default(autoincrement())
+  full_name           String
+  email               String            @unique
+  password            String
+  phone               String?
+  role                Role              @default(client)
+  specialization      String?           @default("Level 1 Support")
+  availability        String?           @default("Online")
+  created_at          DateTime          @default(now())
+  is_active           Boolean           @default(true)
+  permissions         Json?
+  contract_hists      ContractHistory[]
+  customer            Customer?
+  updated_permissions Permission[]
+  assigned_renewals   Renewal[]         @relation("AssignedRenewals")
+  created_renewals    Renewal[]         @relation("CreatedRenewals")
+  system_logs         SystemLog[]
+  audit_logs          TicketAuditLog[]
+  comments            TicketComment[]
+  tickets             Ticket[]          @relation("AgentTickets")
+  work_logs           WorkLog[]
 
   @@map("users")
 }
 
 model Customer {
-  id         Int           @id @default(autoincrement())
-  name       String
-  company    String?
-  email      String?
-  phone      String?
-  type       CustomerType  @default(Monthly)
-  created_at DateTime      @default(now())
-  billing    Billing[]
-  contracts  ContractAMC[]
+  id             Int            @id @default(autoincrement())
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  type           CustomerType   @default(Monthly)
+  status         CustomerStatus @default(Active)
+  notes          String?        @db.Text
+  created_at     DateTime       @default(now())
+  portal_user_id Int?           @unique
+  billing        Billing[]
+  contracts      ContractAMC[]
+  user           User?          @relation(fields: [portal_user_id], references: [id])
+  renewal_assets RenewalAsset[]
+  renewals       Renewal[]
+  tickets        Ticket[]       @relation("CustomerTickets")
 
   @@map("customers")
 }
 
 model Ticket {
-  id            Int             @id @default(autoincrement())
-  ticket_no     String          @unique
+  id            Int                @id @default(autoincrement())
+  ticket_no     String             @unique
+  customer_id   Int?
   customer_name String?
   company       String?
   issue_title   String
-  description   String?         @db.Text
-  priority      Priority        @default(Medium)
+  description   String?            @db.Text
+  priority      Priority           @default(Medium)
   category      String?
   project       String?
-  status        TicketStatus    @default(Open)
+  status        TicketStatus       @default(Open)
+  source        String             @default("Web Portal")
   agent_id      Int?
-  created_at    DateTime        @default(now())
+  deadline      DateTime?
+  parent_id     Int?
+  created_at    DateTime           @default(now())
+  attachments   TicketAttachment[]
+  audit_logs    TicketAuditLog[]
   comments      TicketComment[]
-  agent         User?           @relation("AgentTickets", fields: [agent_id], references: [id])
+  agent         User?              @relation("AgentTickets", fields: [agent_id], references: [id])
+  customer_ref  Customer?          @relation("CustomerTickets", fields: [customer_id], references: [id])
+  parent        Ticket?            @relation("LinkedTickets", fields: [parent_id], references: [id])
+  related       Ticket[]           @relation("LinkedTickets")
   work_logs     WorkLog[]
 
   @@index([agent_id], map: "tickets_agent_id_fkey")
+  @@index([customer_id], map: "tickets_customer_id_fkey")
+  @@index([parent_id], map: "tickets_parent_id_fkey")
   @@map("tickets")
 }
 
 model TicketComment {
-  id         Int      @id @default(autoincrement())
-  ticket_id  Int
-  user_id    Int?
-  message    String   @db.Text
-  created_at DateTime @default(now())
-  ticket     Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
-  user       User?    @relation(fields: [user_id], references: [id])
+  id          Int      @id @default(autoincrement())
+  ticket_id   Int
+  user_id     Int?
+  message     String   @db.Text
+  is_internal Boolean  @default(false)
+  created_at  DateTime @default(now())
+  ticket      Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [user_id], references: [id])
 
   @@index([ticket_id], map: "ticket_comments_ticket_id_fkey")
   @@index([user_id], map: "ticket_comments_user_id_fkey")
   @@map("ticket_comments")
+}
+
+model TicketAttachment {
+  id          Int      @id @default(autoincrement())
+  ticket_id   Int
+  file_name   String
+  file_path   String
+  file_type   String
+  uploaded_at DateTime @default(now())
+  ticket      Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+
+  @@index([ticket_id], map: "ticket_attachments_ticket_id_fkey")
+  @@map("ticket_attachments")
+}
+
+model TicketAuditLog {
+  id         Int      @id @default(autoincrement())
+  ticket_id  Int
+  user_id    Int?
+  action     String
+  details    String?  @db.Text
+  created_at DateTime @default(now())
+  ticket     Ticket   @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [user_id], references: [id])
+
+  @@index([ticket_id])
+  @@index([user_id])
+  @@map("ticket_audit_logs")
+}
+
+model SystemLog {
+  id         Int      @id @default(autoincrement())
+  action     String
+  details    String?  @db.Text
+  user_id    Int?
+  ip_address String?
+  created_at DateTime @default(now())
+  user       User?    @relation(fields: [user_id], references: [id])
+
+  @@index([user_id])
+  @@map("system_logs")
 }
 
 model WorkLog {
@@ -80,55 +151,176 @@ model WorkLog {
   time_spent  String?
   description String?  @db.Text
   created_at  DateTime @default(now())
+  billing_id  Int?
+  is_billed   Boolean  @default(false)
   agent       User?    @relation(fields: [agent_id], references: [id])
+  billing     Billing? @relation(fields: [billing_id], references: [id])
   ticket      Ticket?  @relation(fields: [ticket_id], references: [id], onDelete: Cascade)
 
   @@index([agent_id], map: "work_logs_agent_id_fkey")
   @@index([ticket_id], map: "work_logs_ticket_id_fkey")
+  @@index([billing_id], map: "work_logs_billing_id_fkey")
   @@map("work_logs")
 }
 
 model ContractAMC {
-  id            Int      @id @default(autoincrement())
-  customer_id   Int
-  company_name  String?
-  start_date    DateTime @db.Date
-  end_date      DateTime @db.Date
-  monthly_hours Int      @default(10)
-  priority_sla  String?
-  hours_used    Int      @default(0)
-  created_at    DateTime @default(now())
-  customer      Customer @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  id                Int               @id @default(autoincrement())
+  customer_id       Int
+  company_name      String?
+  start_date        DateTime          @db.Date
+  end_date          DateTime          @db.Date
+  monthly_hours     Float             @default(10)
+  priority_sla      String?
+  hours_used        Float             @default(0)
+  extra_hour_rate   Float?            @default(0)
+  rollover_hours    Boolean           @default(false)
+  scope_of_services String?           @db.Text
+  attachment_url    String?
+  created_at        DateTime          @default(now())
+  history           ContractHistory[]
+  customer          Customer          @relation(fields: [customer_id], references: [id], onDelete: Cascade)
 
   @@index([customer_id], map: "contracts_amc_customer_id_fkey")
   @@map("contracts_amc")
 }
 
+model ContractHistory {
+  id            Int         @id @default(autoincrement())
+  contract_id   Int
+  field_changed String
+  old_value     String?     @db.Text
+  new_value     String?     @db.Text
+  changed_by    Int?
+  created_at    DateTime    @default(now())
+  user          User?       @relation(fields: [changed_by], references: [id])
+  contract      ContractAMC @relation(fields: [contract_id], references: [id], onDelete: Cascade)
+
+  @@index([contract_id])
+  @@index([changed_by])
+  @@map("contract_history")
+}
+
 model Billing {
-  id           Int       @id @default(autoincrement())
-  customer_id  Int
-  hours_used   Float?
-  hourly_rate  Float?
-  total_amount Float?
-  month        String?
-  created_at   DateTime  @default(now())
-  customer     Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
-  invoices     Invoice[]
+  id             Int       @id @default(autoincrement())
+  customer_id    Int
+  hours_used     Float?
+  hourly_rate    Float?
+  total_amount   Float?
+  month          String?
+  created_at     DateTime  @default(now())
+  rating         Int?
+  rating_comment String?   @db.Text
+  customer       Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  invoices       Invoice[]
+  work_logs      WorkLog[]
 
   @@index([customer_id], map: "billing_customer_id_fkey")
   @@map("billing")
 }
 
 model Invoice {
-  id             Int           @id @default(autoincrement())
-  billing_id     Int
-  invoice_number String?
-  status         InvoiceStatus @default(Pending)
-  created_at     DateTime      @default(now())
-  billing        Billing       @relation(fields: [billing_id], references: [id], onDelete: Cascade)
+  id                   Int               @id @default(autoincrement())
+  billing_id           Int
+  invoice_number       String?
+  status               InvoiceStatus     @default(Draft)
+  gst_percentage       Float?            @default(0)
+  issue_date           DateTime          @default(now())
+  due_date             DateTime?
+  total_tax            Float?            @default(0)
+  total_amout_with_tax Float?            @default(0)
+  created_at           DateTime          @default(now())
+  line_items           InvoiceLineItem[]
+  billing              Billing           @relation(fields: [billing_id], references: [id], onDelete: Cascade)
+  payments             Payment[]
 
   @@index([billing_id], map: "invoices_billing_id_fkey")
   @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          Int       @id @default(autoincrement())
+  invoice_id  Int
+  ticket_ref  String?
+  agent_name  String?
+  date_logged DateTime?
+  hours       Float
+  rate        Float
+  total       Float
+  invoice     Invoice   @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@map("invoice_line_items")
+}
+
+model Payment {
+  id             Int      @id @default(autoincrement())
+  invoice_id     Int
+  amount         Float
+  payment_method String
+  payment_date   DateTime @default(now())
+  notes          String?  @db.Text
+  invoice        Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@map("payments")
+}
+
+model RenewalAsset {
+  id            Int       @id @default(autoincrement())
+  customer_id   Int
+  asset_name    String
+  asset_type    String    @default("Other")
+  purchase_date DateTime?
+  expiry_date   DateTime
+  cost          Float?
+  supplier      String?
+  notes         String?   @db.Text
+  created_at    DateTime  @default(now())
+  customer      Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id], map: "renewal_assets_customer_id_fkey")
+  @@map("renewal_assets")
+}
+
+model Permission {
+  id             Int      @id @default(autoincrement())
+  role           Role
+  permission_key String   @db.VarChar(100)
+  is_enabled     Boolean  @default(true)
+  updated_by_id  Int?
+  updated_at     DateTime @default(now()) @updatedAt
+  updated_by     User?    @relation(fields: [updated_by_id], references: [id])
+
+  @@unique([role, permission_key])
+  @@index([updated_by_id])
+  @@map("permissions")
+}
+
+model Renewal {
+  id                Int             @id @default(autoincrement())
+  customer_id       Int
+  category          RenewalCategory
+  asset_name        String
+  vendor            String?
+  purchase_date     DateTime?       @db.Date
+  expiry_date       DateTime        @db.Date
+  cost              Float?
+  currency          String          @default("INR")
+  auto_renew        Boolean         @default(false)
+  status            RenewalStatus   @default(active)
+  assigned_agent_id Int?
+  notes             String?         @db.Text
+  created_by_id     Int?
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+  assigned_agent    User?           @relation("AssignedRenewals", fields: [assigned_agent_id], references: [id])
+  created_by        User?           @relation("CreatedRenewals", fields: [created_by_id], references: [id])
+  customer          Customer        @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+
+  @@index([customer_id])
+  @@index([assigned_agent_id])
+  @@index([created_by_id])
+  @@map("renewals")
 }
 
 enum Role {
@@ -140,6 +332,16 @@ enum Role {
 enum CustomerType {
   AMC
   Monthly
+  Annual
+  Quarterly
+  Per_Ticket @map("Per-Ticket")
+  Retainer
+}
+
+enum CustomerStatus {
+  Active
+  Inactive
+  Churned
 }
 
 enum Priority {
@@ -151,11 +353,37 @@ enum Priority {
 
 enum TicketStatus {
   Open
-  In_Progress @map("In Progress")
+  In_Progress            @map("In Progress")
+  Waiting_on_Customer    @map("Waiting on Customer")
+  Waiting_on_Third_Party @map("Waiting on Third Party")
+  Escalated
+  On_Hold                @map("On Hold")
   Resolved
+  Reopened
+  Closed
 }
 
 enum InvoiceStatus {
-  Pending
+  Draft
+  Sent
   Paid
+  Overdue
+  Cancelled
+}
+
+enum RenewalCategory {
+  domain
+  hosting
+  email
+  ssl
+  software
+  firewall
+  amc
+}
+
+enum RenewalStatus {
+  active
+  expiring_soon
+  expired
+  renewed
 }

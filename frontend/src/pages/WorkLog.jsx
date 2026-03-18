@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FiClock, FiUsers, FiEye } from "react-icons/fi";
+import { FiClock, FiUsers, FiEye, FiDownload } from "react-icons/fi";
 import axios from "axios";
 
 export default function WorkLog() {
@@ -21,6 +21,7 @@ export default function WorkLog() {
     fetchLogs();
     fetchTickets();
     if (isAdmin) fetchAgents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTickets = async () => {
@@ -88,6 +89,31 @@ export default function WorkLog() {
   const totalHrs = Math.floor(totalMinutes / 60);
   const totalMins = totalMinutes % 60;
 
+  const handleExportCSV = () => {
+    // Basic CSV Export Logic
+    const headers = ["Date", "Agent", "Ticket No", "Start Time", "End Time", "Time Spent", "Description"];
+    const csvData = displayedLogs.map(l => [
+      new Date(l.created_at).toLocaleDateString(),
+      l.agent?.full_name || "N/A",
+      l.ticket?.ticket_no || l.ticket_id || "N/A",
+      l.start_time,
+      l.end_time,
+      l.time_spent,
+      `"${l.description.replace(/"/g, '""')}"` 
+    ]);
+    
+    // Combine Headers and Rows
+    const csvContent = [headers.join(","), ...csvData.map(row => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `WorkLogs_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // ─── ADMIN VIEW — Monitor only ─────────────────────────────────────────────
   if (isAdmin) {
     return (
@@ -101,7 +127,10 @@ export default function WorkLog() {
           </div>
           {/* Agent filter */}
           <div className="flex items-center gap-2">
-            <FiUsers className="text-blue-600" />
+            <button onClick={handleExportCSV} className="bg-green-100 flex items-center gap-1 text-green-700 px-3 py-2 rounded-lg text-sm font-bold hover:bg-green-200 transition">
+              <FiDownload size={14} /> Export CSV
+            </button>
+            <FiUsers className="text-blue-600 ml-2" />
             <select
               className="border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400 min-w-[180px]"
               value={filterAgent}

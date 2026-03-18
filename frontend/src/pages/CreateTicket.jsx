@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiArrowLeft } from "react-icons/fi";
 import axios from "axios";
@@ -13,9 +13,44 @@ export default function CreateTicket() {
   const [visionLoading, setVisionLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
-    customerName: "", company: "", issue_title: "",
+    customer_id: "", customerName: "", company: "", issue_title: "",
     description: "", priority: "", category: "", project: "",
   });
+  const [customers, setCustomers] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
+
+  const fetchCustomers = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(`${process.env.REACT_APP_URL}/customers`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setCustomers(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const templates = [
+    { name: "Email Setup", title: "Email Configuration Issue", category: "Email Issue", priority: "Medium", desc: "User is unable to send/receive emails." },
+    { name: "VPN Issue", title: "Cannot connect to VPN", category: "Server Issue", priority: "High", desc: "User is getting a connection timeout when connecting to the VPN." },
+    { name: "Password Reset", title: "Password Reset Request", category: "Login Issue", priority: "Medium", desc: "User is locked out and needs a password reset." },
+    { name: "Website Down", title: "Website is unresponsive", category: "Website Bug", priority: "Critical", desc: "The main website is returning a 5xx error." }
+  ];
+
+  const applyTemplate = (tpl) => {
+    setForm(prev => ({
+      ...prev,
+      issue_title: tpl.title,
+      category: tpl.category,
+      priority: tpl.priority,
+      description: tpl.desc
+    }));
+  };
 
   const handleAiClassify = async () => {
     if (!form.description) return alert("Please enter a description first");
@@ -77,13 +112,29 @@ export default function CreateTicket() {
     setError("");
     try {
       const token = localStorage.getItem("token");
-      // Map customerName to customer_name for backend consistency
-      const submitData = {
-        ...form,
-        customer_name: form.customerName
-      };
+
+      const submitData = new FormData();
+      if (form.customer_id) {
+        submitData.append("customer_id", form.customer_id);
+      }
+      submitData.append("customer_name", form.customerName);
+      submitData.append("company", form.company);
+      submitData.append("issue_title", form.issue_title);
+      submitData.append("description", form.description);
+      submitData.append("priority", form.priority);
+      submitData.append("category", form.category);
+      if (form.project) submitData.append("project", form.project);
+      submitData.append("source", "Web Portal");
+
+      Array.from(attachments).forEach(file => {
+        submitData.append("attachments", file);
+      });
+
       await axios.post(`${process.env.REACT_APP_URL}/tickets`, submitData, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "multipart/form-data"
+        },
       });
       alert("✅ Ticket raised successfully!");
       navigate("/tickets");
@@ -114,21 +165,62 @@ export default function CreateTicket() {
       )}
 
       <div className="bg-white rounded-xl shadow p-8 max-w-3xl">
+        {/* Templates */}
+        <div className="mb-6">
+          <label className="text-sm font-medium text-gray-700 mb-2 block">Quick Templates</label>
+          <div className="flex gap-2 flex-wrap">
+            {templates.map(tpl => (
+              <button 
+                key={tpl.name}
+                type="button"
+                onClick={() => applyTemplate(tpl)}
+                className="bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700 text-xs px-3 py-1.5 rounded-full transition"
+              >
+                {tpl.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Customer Name *</label>
-              <input type="text" placeholder="Enter customer name" required
-                className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                value={form.customerName}
-                onChange={(e) => setForm({ ...form, customerName: e.target.value })} />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-700 mb-1 block">Company *</label>
-              <input type="text" placeholder="Enter company name" required
-                className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                value={form.company}
-                onChange={(e) => setForm({ ...form, company: e.target.value })} />
+          <div className="bg-gray-50 p-4 rounded-xl border mb-5">
+            <label className="text-sm font-bold text-gray-700 mb-2 block">Link to Customer (Recommended)</label>
+            <select
+              className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 mb-4"
+              value={form.customer_id}
+              onChange={(e) => {
+                const cId = e.target.value;
+                const c = customers.find(x => x.id === Number(cId));
+                setForm({ 
+                  ...form, 
+                  customer_id: cId, 
+                  customerName: c ? c.name : form.customerName, 
+                  company: c ? (c.company || "") : form.company 
+                });
+              }}>
+              <option value="">-- No Customer Link (Manual Entry) --</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.name} {c.company ? `(${c.company})` : ""}</option>
+              ))}
+            </select>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Customer Name *</label>
+                <input type="text" placeholder="Enter customer name" required
+                  className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                  disabled={!!form.customer_id}
+                  value={form.customerName}
+                  onChange={(e) => setForm({ ...form, customerName: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 mb-1 block">Company *</label>
+                <input type="text" placeholder="Enter company name"
+                  className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+                  disabled={!!form.customer_id}
+                  value={form.company}
+                  onChange={(e) => setForm({ ...form, company: e.target.value })} />
+              </div>
             </div>
           </div>
 
@@ -208,6 +300,17 @@ export default function CreateTicket() {
                 value={form.project}
                 onChange={(e) => setForm({ ...form, project: e.target.value })} />
             </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700 mb-1 block">Attachments (JPG, PNG, PDF, ZIP)</label>
+            <input type="file" multiple
+              accept=".jpg,.jpeg,.png,.pdf,.zip"
+              className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+              onChange={(e) => setAttachments(e.target.files)} />
+            {attachments.length > 0 && (
+              <p className="text-xs text-blue-600 mt-1">{attachments.length} file(s) selected.</p>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">

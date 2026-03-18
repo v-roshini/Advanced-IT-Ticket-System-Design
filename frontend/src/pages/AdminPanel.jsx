@@ -3,7 +3,7 @@ import { FiUsers, FiFileText, FiSettings, FiShield, FiPlus, FiX } from "react-ic
 import axios from "axios";
 
 const BASE = process.env.REACT_APP_URL;
-const tabs = ["Overview", "AMC Contracts", "Billing", "Settings"];
+const tabs = ["Overview", "Users", "AMC Contracts", "Billing", "Permissions", "System Logs", "Settings"];
 
 // ─────────────────────────────────────────
 // ADMIN OVERVIEW
@@ -29,7 +29,7 @@ function AdminOverview() {
         ]);
         setStats({
           totalUsers: usersRes.data.length,
-          activeContracts: contractsRes.data.length,
+          activeContracts: contractsRes.data.filter(c => new Date(c.end_date) >= new Date()).length,
           pendingInvoices: invoicesRes.data.filter((i) => i.status === "Pending").length,
           adminUsers: 1,
         });
@@ -458,7 +458,7 @@ function BillingPanel() {
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Month *</label>
-                <input type="month" required
+                <input type="month" required max={new Date().toISOString().slice(0,7)}
                   className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
                   value={form.month}
                   onChange={(e) => setForm({ ...form, month: e.target.value })} />
@@ -506,6 +506,133 @@ function BillingPanel() {
 }
 
 // ─────────────────────────────────────────
+// USER MANAGEMENT TAB
+// ─────────────────────────────────────────
+
+function UserManagement() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await axios.get(`${BASE}/api/admin/users`, { headers });
+      setUsers(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const handleToggleStatus = async (id, currentStatus) => {
+    try {
+      await axios.patch(`${BASE}/api/admin/users/${id}/status`, { is_active: !currentStatus }, { headers });
+      fetchUsers();
+    } catch (err) { alert("Status toggle failed"); }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div className="p-6 border-b flex justify-between items-center">
+         <h3 className="font-bold text-blue-900">User & Agent Directory</h3>
+         <span className="text-xs text-gray-500 font-medium">Manage IDs, Roles & Access</span>
+      </div>
+      <table className="w-full text-sm text-left">
+        <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider">
+          <tr>
+            <th className="px-6 py-4">Name</th>
+            <th className="px-6 py-4">Role</th>
+            <th className="px-6 py-4">Specialization</th>
+            <th className="px-6 py-4">Status</th>
+            <th className="px-6 py-4">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map(u => (
+            <tr key={u.id} className="border-t hover:bg-gray-50 transition">
+              <td className="px-6 py-4 flex flex-col">
+                <span className="font-bold text-gray-800">{u.full_name}</span>
+                <span className="text-xs text-gray-400">{u.email}</span>
+              </td>
+              <td className="px-6 py-4">
+                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : u.role === 'agent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                   {u.role}
+                 </span>
+              </td>
+              <td className="px-6 py-4 text-gray-500">{u.specialization || "—"}</td>
+              <td className="px-6 py-4">
+                 <span className={`w-3 h-3 rounded-full inline-block mr-2 ${u.is_active ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                 {u.is_active ? 'Active' : 'Inactive'}
+              </td>
+              <td className="px-6 py-4">
+                <button onClick={() => handleToggleStatus(u.id, u.is_active)} className={`text-xs font-bold ${u.is_active ? 'text-red-600' : 'text-green-600'} hover:underline`}>
+                  {u.is_active ? 'Deactivate' : 'Activate'}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// SYSTEM LOGS TAB
+// ─────────────────────────────────────────
+
+function SystemLogs() {
+  const [logs, setLogs] = useState([]);
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        const res = await axios.get(`${BASE}/api/admin/logs`, { headers });
+        setLogs(res.data);
+      } catch (err) { console.error(err); }
+    };
+    fetchLogs();
+  }, []);
+
+  return (
+    <div className="bg-white rounded-xl shadow overflow-hidden">
+      <div className="p-6 border-b">
+         <h3 className="font-bold text-blue-900">Audit Trail & System Logs</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs text-left">
+          <thead className="bg-blue-900 text-white uppercase text-[10px] font-bold tracking-widest">
+            <tr>
+              <th className="px-6 py-4">Timestamp</th>
+              <th className="px-6 py-4">User</th>
+              <th className="px-6 py-4">Action</th>
+              <th className="px-6 py-4">Details</th>
+              <th className="px-6 py-4">IP Address</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map(l => (
+              <tr key={l.id} className="border-t hover:bg-gray-50 transition font-mono">
+                <td className="px-6 py-4 text-gray-400">{new Date(l.created_at).toLocaleString()}</td>
+                <td className="px-6 py-4 font-bold text-blue-800">{l.user?.full_name || "System"}</td>
+                <td className="px-6 py-4 text-gray-800">{l.action}</td>
+                <td className="px-6 py-4 text-gray-500 italic max-w-xs truncate">{l.details || "—"}</td>
+                <td className="px-6 py-4 text-gray-400">{l.ip_address}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
 // SETTINGS
 // ─────────────────────────────────────────
 function Settings() {
@@ -516,27 +643,137 @@ function Settings() {
     hourly_rate: "500",
   });
 
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const handleBackup = async () => {
+    try {
+      const res = await axios.get(`${BASE}/api/admin/backup`, { headers, responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'linotec_backup.json');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) { alert("Backup failed"); }
+  };
+
   return (
-    <div className="bg-white rounded-xl shadow p-6 max-w-2xl">
-      <h3 className="font-semibold text-blue-900 mb-5">Company Settings</h3>
-      <div className="flex flex-col gap-4">
-        {[
-          { label: "Company Name", key: "company_name" },
-          { label: "Support Email", key: "email" },
-          { label: "Phone Number", key: "phone" },
-          { label: "Default Hourly Rate (₹)", key: "hourly_rate" },
-        ].map((f) => (
-          <div key={f.key}>
-            <label className="text-sm font-medium text-gray-700 mb-1 block">{f.label}</label>
-            <input type="text"
-              className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-              value={form[f.key]}
-              onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
-          </div>
-        ))}
-        <button className="bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-800 transition w-fit mt-2">
-          Save Settings
-        </button>
+    <div className="grid grid-cols-2 gap-6">
+      <div className="bg-white rounded-xl shadow p-6">
+        <h3 className="font-semibold text-blue-900 mb-5">Company Branding</h3>
+        <div className="flex flex-col gap-4">
+          {[
+            { label: "Company Name", key: "company_name" },
+            { label: "Support Email", key: "email" },
+            { label: "Phone Number", key: "phone" },
+            { label: "Default Hourly Rate (₹)", key: "hourly_rate" },
+          ].map((f) => (
+            <div key={f.key}>
+              <label className="text-sm font-medium text-gray-700 mb-1 block">{f.label}</label>
+              <input type="text"
+                className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                value={form[f.key]}
+                onChange={(e) => setForm({ ...form, [f.key]: e.target.value })} />
+            </div>
+          ))}
+          <button className="bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-800 transition w-fit mt-2">
+            Save Settings
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow p-6">
+         <h3 className="font-semibold text-blue-900 mb-5">Security & Maintenance</h3>
+         <div className="flex flex-col gap-4">
+            <div className="p-4 border border-dashed border-gray-200 rounded-xl">
+               <h4 className="text-sm font-bold text-gray-800 mb-1">Full Data Export</h4>
+               <p className="text-xs text-gray-400 mb-3">Download a raw JSON dump of all tickets, customers, and contracts.</p>
+               <button onClick={handleBackup} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 transition">
+                  Generate Cloud Backup (.JSON)
+               </button>
+            </div>
+            <div className="p-4 border border-dashed border-gray-200 rounded-xl">
+               <h4 className="text-sm font-bold text-gray-800 mb-1">SLA Configuration</h4>
+               <p className="text-xs text-gray-400 mb-3">Configure global resolution timers for Priority tiers.</p>
+               <button className="text-blue-600 text-xs font-bold hover:underline">Edit SLA Tiers</button>
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// PERMISSION ENGINE
+// ─────────────────────────────────────────
+function AdminPermissions() {
+  const [permissions, setPermissions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const token = localStorage.getItem("token");
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetchPermissions();
+  }, []);
+
+  const fetchPermissions = async () => {
+    try {
+      const res = await axios.get(`${BASE}/api/admin/permissions`, { headers });
+      setPermissions(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  };
+
+  const togglePermission = async (id, currentStatus) => {
+    try {
+      await axios.patch(`${BASE}/api/admin/permissions/${id}`, { is_enabled: !currentStatus }, { headers });
+      fetchPermissions();
+    } catch (err) { alert("Failed to update permission"); }
+  };
+
+  const agentPerms = permissions.filter(p => p.role === 'agent');
+  const clientPerms = permissions.filter(p => p.role === 'client');
+
+  const PermissionRow = ({ p }) => (
+    <div className="flex items-center justify-between p-4 hover:bg-gray-50 transition border-b last:border-0 border-gray-100">
+      <div className="flex-1">
+        <p className="font-bold text-gray-800 text-sm tracking-tight">{p.permission_key.replace(/_/g, " ").toUpperCase()}</p>
+        <p className="text-[10px] text-gray-400 font-medium">Last updated by {p.updated_by?.full_name || "System"}</p>
+      </div>
+      <button 
+        onClick={() => togglePermission(p.id, p.is_enabled)}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${p.is_enabled ? 'bg-blue-600' : 'bg-gray-200'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${p.is_enabled ? 'translate-x-6' : 'translate-x-1'}`} />
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* Agent Permissions */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-blue-900 text-white p-5">
+           <h3 className="text-lg font-black uppercase tracking-widest text-center">Support Team Access</h3>
+           <p className="text-[10px] text-blue-200 text-center uppercase font-bold mt-1">Control Agent Capabilities</p>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {loading ? <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p> : agentPerms.map(p => <PermissionRow key={p.id} p={p} />)}
+        </div>
+      </div>
+
+      {/* Client Permissions */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="bg-blue-600 text-white p-5">
+           <h3 className="text-lg font-black uppercase tracking-widest text-center">Customer Portal Access</h3>
+           <p className="text-[10px] text-blue-100 text-center uppercase font-bold mt-1">Control Portal Visibility</p>
+        </div>
+        <div className="divide-y divide-gray-50">
+           {loading ? <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p> : clientPerms.map(p => <PermissionRow key={p.id} p={p} />)}
+        </div>
       </div>
     </div>
   );
@@ -559,37 +796,45 @@ export default function AdminPanel() {
 
       {/* Admin Info Card */}
       <div className="bg-gradient-to-r from-blue-700 to-blue-900 rounded-2xl p-6 mb-6 text-white flex items-center gap-5">
-        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl font-bold">
+        <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center text-3xl font-bold border-2 border-white/30">
           {user.full_name?.charAt(0) || "A"}
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-xl font-bold">{user.full_name || "Admin"}</p>
           <p className="text-blue-200 text-sm">{user.email}</p>
-          <span className="bg-white/20 text-white text-xs px-3 py-1 rounded-full mt-1 inline-block">
-            {user.role?.toUpperCase()}
+          <span className="bg-white/20 text-white text-[10px] uppercase font-black px-3 py-1 rounded-md mt-1 inline-block tracking-widest">
+            🛡️ {user.role?.toUpperCase()} ACCESS
           </span>
+        </div>
+        <div className="hidden md:block">
+           <p className="text-white text-xs font-bold bg-green-500/50 px-3 py-1 rounded-full border border-green-400/50">SYSTEM ONLINE</p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 bg-white rounded-xl shadow p-1 w-fit">
+      <div className="flex gap-2 mb-6 bg-white rounded-xl shadow p-1 w-fit border border-gray-100">
         {tabs.map((tab) => (
           <button key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2 rounded-lg text-sm font-medium transition
+            className={`px-5 py-2 rounded-lg text-sm font-bold transition
               ${activeTab === tab
-                ? "bg-blue-700 text-white shadow"
-                : "text-gray-500 hover:text-blue-700"}`}>
+                ? "bg-blue-700 text-white shadow-lg"
+                : "text-gray-400 hover:text-blue-700"}`}>
             {tab}
           </button>
         ))}
       </div>
 
       {/* Tab Content */}
-      {activeTab === "Overview" && <AdminOverview />}
-      {activeTab === "AMC Contracts" && <AMCContracts />}
-      {activeTab === "Billing" && <BillingPanel />}
-      {activeTab === "Settings" && <Settings />}
+      <div className="animate-in fade-in duration-500">
+        {activeTab === "Overview" && <AdminOverview />}
+        {activeTab === "Users" && <UserManagement />}
+        {activeTab === "AMC Contracts" && <AMCContracts />}
+        {activeTab === "Billing" && <BillingPanel />}
+        {activeTab === "Permissions" && <AdminPermissions />}
+        {activeTab === "System Logs" && <SystemLogs />}
+        {activeTab === "Settings" && <Settings />}
+      </div>
     </div>
   );
 }

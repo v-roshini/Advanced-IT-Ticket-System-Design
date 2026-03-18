@@ -17,7 +17,11 @@ app.use("/agents", require("./routes/agents"));
 app.use("/amc", require("./routes/amc"));
 app.use("/api/billing", require("./routes/billing"));
 app.use("/api/invoices", require("./routes/invoices"));
+app.use("/api/admin", require("./routes/admin")); // P1: Admin Panel Logic
 app.use("/ai", require("./routes/ai"));
+app.use("/renewals", require("./routes/renewals"));
+
+app.use("/uploads", express.static("uploads"));
 
 app.get("/", (req, res) => {
     res.json({ message: "✅ Linotec API is running!" });
@@ -41,4 +45,8 @@ app.listen(PORT, async () => {
     } catch (err) {
         console.error("❌ Database Connection Failed:", err.message);
     }
+
+    // --- Renewal Manager Module ---
+    const { startRenewalCron } = require("./services/renewalService");
+    startRenewalCron();
 });

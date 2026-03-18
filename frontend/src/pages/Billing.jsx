@@ -1,16 +1,30 @@
 import { useState, useEffect } from "react";
-import { FiPlus, FiX, FiFileText } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+import { FiPlus, FiX, FiFileText, FiDownload, FiTruck, FiDollarSign, FiClock, FiCheckSquare } from "react-icons/fi";
 import axios from "axios";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
 
 const BASE = process.env.REACT_APP_URL;
 
-export default function BillingPanel() {
+export default function Billing() {
+  const navigate = useNavigate();
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  useEffect(() => {
+    if (user.role === 'client') {
+      navigate('/customer/billing');
+    }
+  }, [user, navigate]);
+
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [unbilledLogs, setUnbilledLogs] = useState([]);
+  const [selectedLogs, setSelectedLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
-    customer_id: "", hours_used: "", hourly_rate: "", month: ""
+    customer_id: "", hours_used: "", hourly_rate: "500", month: "", gst_percentage: "18"
   });
 
   const token = localStorage.getItem("token");
@@ -41,18 +55,49 @@ export default function BillingPanel() {
     }
   };
 
-  const totalAmount = (hours, rate) => (
-    (Number(hours) * Number(rate)).toFixed(2)
-  );
+  const fetchUnbilled = async (cid) => {
+    try {
+      const res = await axios.get(`${BASE}/api/billing/unbilled/${cid}`, { headers });
+      setUnbilledLogs(res.data);
+      setSelectedLogs([]);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleLogToggle = (log) => {
+    let newSelected = [];
+    if (selectedLogs.find(l => l.id === log.id)) {
+      newSelected = selectedLogs.filter(l => l.id !== log.id);
+    } else {
+      newSelected = [...selectedLogs, log];
+    }
+    setSelectedLogs(newSelected);
+    
+    // Auto calculate hours
+    let totalHrs = 0;
+    newSelected.forEach(l => {
+      const timeStr = String(l.time_spent);
+      const hMatch = timeStr.match(/(\d+)h/);
+      if (hMatch) totalHrs += parseInt(hMatch[1], 10);
+      const mMatch = timeStr.match(/(\d+)m/);
+      if (mMatch) totalHrs += parseInt(mMatch[1], 10) / 60;
+    });
+    setForm(prev => ({ ...prev, hours_used: totalHrs.toFixed(2) }));
+  };
+
+  const totalAmount = (hours, rate) => (Number(hours) * Number(rate)).toFixed(2);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const total_amount = totalAmount(form.hours_used, form.hourly_rate);
+    const log_ids = selectedLogs.map(l => l.id);
+    
     try {
-      await axios.post(`${BASE}/api/billing`, { ...form, total_amount }, { headers });
-      alert("✅ Bill created!");
+      await axios.post(`${BASE}/api/billing`, { ...form, total_amount, log_ids }, { headers });
+      alert("✅ Bill created & Logs marked as Billed!");
       setShowModal(false);
-      setForm({ customer_id: "", hours_used: "", hourly_rate: "", month: "" });
+      setForm({ customer_id: "", hours_used: "", hourly_rate: "500", month: "", gst_percentage: "18" });
+      setSelectedLogs([]);
+      setUnbilledLogs([]);
       fetchBills();
     } catch (err) {
       alert(err.response?.data?.message || "Failed to create bill");
@@ -62,13 +107,115 @@ export default function BillingPanel() {
   const handleGenerateInvoice = async (billing_id) => {
     const invoice_number = "INV" + Date.now().toString().slice(-6);
     try {
-      await axios.post(`${BASE}/api/invoices`, { billing_id, invoice_number }, { headers });
+      await axios.post(`${BASE}/api/invoices`, { 
+        billing_id, 
+        invoice_number,
+        gst_percentage: form.gst_percentage || 18
+      }, { headers });
       alert(`✅ Invoice ${invoice_number} generated!`);
       fetchBills();
     } catch (err) {
       alert("Failed to generate invoice");
     }
   };
+
+  const handleDownloadPDF = async (invoice, bill) => {
+    const doc = new jsPDF();
+    const customer = bill.customer || { name: "N/A", company: "N/A", address: "No Address Provided" };
+
+    // Header
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text("LINOTEC SOLUTIONS", 14, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("123 Tech Park, Phase 1", 14, 30);
+    doc.text("GSTIN: 29AABCU9603R1ZQ", 14, 35);
+
+    // Invoice Meta
+    doc.setFontSize(15);
+    doc.setFont("helvetica", "bold");
+    doc.text("TAX INVOICE", 150, 22);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Invoice No: ${invoice.invoice_number}`, 150, 30);
+    doc.text(`Date: ${new Date(invoice.issue_date || invoice.created_at).toLocaleDateString()}`, 150, 35);
+    doc.text(`Status: ${invoice.status}`, 150, 40);
+
+    // Billing To
+    doc.setDrawColor(200);
+    doc.line(14, 45, 196, 45);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Bill To:", 14, 55);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${customer.name}`, 14, 61);
+    doc.text(`${customer.company}`, 14, 67);
+
+    // Table
+    const tableData = invoice.line_items?.length > 0 
+      ? invoice.line_items.map((item, i) => [
+          i + 1,
+          item.ticket_ref || 'Tech Support (Hourly)',
+          item.hours.toString(),
+          `Rs.${item.rate.toFixed(2)}`,
+          `Rs.${item.total.toFixed(2)}`
+        ])
+      : [
+          [1, `Standard Billing - ${bill.month}`, bill.hours_used.toString(), `Rs.${bill.hourly_rate}`, `Rs.${bill.total_amount}`]
+        ];
+
+    doc.autoTable({
+      startY: 80,
+      head: [['Sr. No', 'Description', 'Hours / Qty', 'Rate', 'Amount']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 64, 175] }
+    });
+
+    const finalY = doc.lastAutoTable.finalY + 10;
+    
+    // Summary
+    doc.setFontSize(10);
+    doc.text(`Subtotal: Rs.${bill.total_amount}`, 140, finalY);
+    doc.text(`GST (${invoice.gst_percentage}%): Rs.${invoice.total_tax}`, 140, finalY + 6);
+    
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total Amount: Rs.${invoice.total_amout_with_tax}`, 130, finalY + 16);
+
+    // Bank Details
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("Bank Transfer Details:", 14, finalY + 30);
+    doc.setFont("helvetica", "normal");
+    doc.text("Bank: HDFC Bank", 14, finalY + 35);
+    doc.text("Account No: 50200012345678", 14, finalY + 40);
+    doc.text("IFSC Code: HDFC000123", 14, finalY + 45);
+
+    doc.save(`${invoice.invoice_number}.pdf`);
+  };
+
+  const handleMarkPaid = async (invoiceId) => {
+    const method = window.prompt("Payment Method (e.g. Bank Transfer, UPI):", "Bank Transfer");
+    if (!method) return;
+    
+    try {
+      await axios.put(`${BASE}/api/invoices/${invoiceId}/paid`, { method, amount: 1 }, { headers });
+      fetchBills();
+      alert("✅ Invoice Marked Paid");
+    } catch (err) {
+      alert("Error marking invoice paid.");
+    }
+  };
+
+  const currentMonthRevenue = bills
+    .filter(b => b.month === new Date().toISOString().slice(0, 7))
+    .reduce((acc, curr) => acc + (Number(curr.total_amount) || 0), 0);
+
+  const pendingInvoices = bills.flatMap(b => b.invoices || []).filter(inv => inv.status !== 'Paid' && inv.status !== 'Cancelled').length;
 
   return (
     <div>
@@ -82,6 +229,22 @@ export default function BillingPanel() {
           className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm font-medium">
           <FiPlus /> Create Bill
         </button>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <div className="bg-white rounded-xl shadow p-5 border-l-4 border-green-500">
+           <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Current Month Revenue</h3>
+           <p className="text-2xl font-black text-gray-800">₹{currentMonthRevenue.toFixed(2)}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-5 border-l-4 border-orange-400">
+           <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Pending Invoices</h3>
+           <p className="text-2xl font-black text-gray-800">{pendingInvoices}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow p-5 border-l-4 border-blue-500">
+           <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Total Bills Generated</h3>
+           <p className="text-2xl font-black text-gray-800">{bills.length}</p>
+        </div>
       </div>
 
       {/* Bills Table */}
@@ -117,19 +280,36 @@ export default function BillingPanel() {
                   <td className="px-4 py-3 text-gray-600">{b.month}</td>
                   <td className="px-4 py-3 text-gray-600">{b.hours_used} hrs</td>
                   <td className="px-4 py-3 text-gray-600">₹{b.hourly_rate}</td>
-                  <td className="px-4 py-3 font-bold text-green-600">
-                    ₹{b.total_amount}
-                  </td>
+                  <td className="px-4 py-3 font-bold text-green-600">₹{b.total_amount}</td>
                   <td className="px-4 py-3">
                     {b.invoices?.length > 0 ? (
-                      <span className="bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs font-medium">
-                        {b.invoices[0].invoice_number}
-                      </span>
+                      <div className="flex flex-col gap-2 relative">
+                         <div className="flex items-center gap-2">
+                           <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase
+                              ${b.invoices[0].status === 'Draft' ? 'bg-gray-100 text-gray-600' : 
+                                b.invoices[0].status === 'Paid' ? 'bg-green-100 text-green-700' : 
+                                b.invoices[0].status === 'Overdue' ? 'bg-red-100 text-red-700' : 
+                                'bg-blue-100 text-blue-700'}`}>
+                             {b.invoices[0].status}
+                           </span>
+                           <span className="text-xs font-bold text-gray-800">{b.invoices[0].invoice_number}</span>
+                         </div>
+                         <div className="flex gap-3 mt-1">
+                           <button onClick={() => handleDownloadPDF(b.invoices[0], b)} className="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-2 py-1 flex items-center gap-1 rounded hover:bg-indigo-100 transition">
+                             <FiDownload /> PDF
+                           </button>
+                           {b.invoices[0].status !== 'Paid' && (
+                             <button onClick={() => handleMarkPaid(b.invoices[0].id)} className="text-[10px] bg-green-50 text-green-700 font-bold px-2 py-1 flex items-center gap-1 rounded hover:bg-green-100 transition">
+                               <FiDollarSign /> Mark Paid
+                             </button>
+                           )}
+                         </div>
+                      </div>
                     ) : (
                       <button
                         onClick={() => handleGenerateInvoice(b.id)}
-                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-medium">
-                        <FiFileText size={12} /> Generate
+                        className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-bold bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 transition">
+                        <FiCheckSquare size={14} /> Generate Invoice
                       </button>
                     )}
                   </td>
@@ -140,23 +320,25 @@ export default function BillingPanel() {
         )}
       </div>
 
-      {/* Create Bill Modal */}
+      {/* Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4 overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-xl font-bold text-blue-900">Create Bill</h3>
               <button onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-600"><FiX size={20} /></button>
             </div>
-
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label>
                 <select required
                   className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
                   value={form.customer_id}
-                  onChange={(e) => setForm({ ...form, customer_id: e.target.value })}>
+                  onChange={(e) => {
+                    setForm({ ...form, customer_id: e.target.value });
+                    fetchUnbilled(e.target.value);
+                  }}>
                   <option value="">Select Customer</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>{c.name} – {c.company}</option>
@@ -164,12 +346,42 @@ export default function BillingPanel() {
                 </select>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Month *</label>
-                <input type="month" required
-                  className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                  value={form.month}
-                  onChange={(e) => setForm({ ...form, month: e.target.value })} />
+              {unbilledLogs.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <h4 className="text-xs font-bold text-blue-800 mb-2 uppercase tracking-wide">Unbilled Work Logs</h4>
+                  <div className="flex flex-col gap-2 max-h-40 overflow-y-auto">
+                    {unbilledLogs.map(l => (
+                      <label key={l.id} className="flex items-center gap-2 bg-white p-2 rounded border cursor-pointer hover:border-blue-400 transition">
+                        <input type="checkbox" 
+                          checked={!!selectedLogs.find(sl => sl.id === l.id)}
+                          onChange={() => handleLogToggle(l)}
+                        />
+                        <div className="flex-1 overflow-hidden">
+                          <p className="text-[10px] font-bold text-gray-800 truncate">#{l.ticket?.ticket_no} - {l.ticket?.issue_title}</p>
+                          <p className="text-[10px] text-gray-400">{l.time_spent} | {new Date(l.created_at).toLocaleDateString()}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-blue-600 mt-2 italic">* Selecting logs auto-fills the hours below.</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Month *</label>
+                  <input type="month" required max={new Date().toISOString().slice(0,7)}
+                    className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                    value={form.month}
+                    onChange={(e) => setForm({ ...form, month: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">GST %</label>
+                  <input type="number" required min="0" border
+                    className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                    value={form.gst_percentage}
+                    onChange={(e) => setForm({ ...form, gst_percentage: Number(e.target.value) })} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

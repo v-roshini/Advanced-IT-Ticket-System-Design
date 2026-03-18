@@ -68,20 +68,43 @@ router.post("/", verifyToken, async (req, res) => {
           if (activeContract) {
             // Parse time_spent string (e.g., "1h 30m" or "45m") to fractional hours
             let hoursLogged = 0;
-            const hMatch = String(time_spent).match(/(\d+)h/);
+            const timeStr = String(time_spent);
+            const hMatch = timeStr.match(/(\d+)h/);
             if (hMatch) hoursLogged += parseInt(hMatch[1], 10);
-
-            const mMatch = String(time_spent).match(/(\d+)m/);
+            const mMatch = timeStr.match(/(\d+)m/);
             if (mMatch) hoursLogged += parseInt(mMatch[1], 10) / 60;
 
             if (hoursLogged > 0) {
+              const newHoursUsed = activeContract.hours_used + hoursLogged;
+              
               await prisma.contractAMC.update({
                 where: { id: activeContract.id },
-                data: {
-                  hours_used: activeContract.hours_used + hoursLogged
-                }
+                data: { hours_used: newHoursUsed }
               });
+              
               console.log(`✅ Deducted ${hoursLogged.toFixed(2)} hours from AMC Contract ID ${activeContract.id}`);
+
+              // P1: Generate extra hours billing if exceeded
+              const previousOverage = Math.max(0, activeContract.hours_used - activeContract.monthly_hours);
+              const newOverage = Math.max(0, newHoursUsed - activeContract.monthly_hours);
+              const billableOverage = newOverage - previousOverage;
+
+              if (billableOverage > 0 && activeContract.extra_hour_rate > 0) {
+                const amount = billableOverage * activeContract.extra_hour_rate;
+                const monthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
+                
+                // Add to billing table automatically
+                await prisma.billing.create({
+                  data: {
+                    customer_id: customer.id,
+                    hours_used: billableOverage,
+                    hourly_rate: activeContract.extra_hour_rate,
+                    total_amount: amount,
+                    month: monthStr
+                  }
+                });
+                console.log(`⚠️ Overage billed: ${billableOverage.toFixed(2)} hrs at ₹${activeContract.extra_hour_rate} (Total: ₹${amount.toFixed(2)})`);
+              }
             }
           }
         }
@@ -96,9 +119,48 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
+// PUT (Edit) work log
+router.put("/:id", verifyToken, async (req, res) => {
+  const { id } = req.params;
+  const { description, start_time, end_time, time_spent } = req.body;
+
+  try {
+    const log = await prisma.workLog.findUnique({ where: { id: Number(id) } });
+    if (!log) return res.status(404).json({ message: "Work log not found" });
+
+    // P2: Restriction - Must be own log OR admin. AND < 24 hours old.
+    const isOwner = log.agent_id === req.user.id;
+    const hoursOld = (new Date() - new Date(log.created_at)) / (1000 * 60 * 60);
+
+    if (req.user.role !== "admin") {
+      if (!isOwner) return res.status(403).json({ message: "Not authorized" });
+      if (hoursOld > 24) return res.status(403).json({ message: "Editing locked after 24 hours" });
+    }
+
+    const updated = await prisma.workLog.update({
+      where: { id: Number(id) },
+      data: { description, start_time, end_time, time_spent }
+    });
+    res.json({ message: "Work log updated!", updated });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // DELETE work log
 router.delete("/:id", verifyToken, async (req, res) => {
   try {
+    const log = await prisma.workLog.findUnique({ where: { id: Number(req.params.id) } });
+    if (!log) return res.status(404).json({ message: "Work log not found" });
+
+    const isOwner = log.agent_id === req.user.id;
+    const hoursOld = (new Date() - new Date(log.created_at)) / (1000 * 60 * 60);
+
+    if (req.user.role !== "admin") {
+       if (!isOwner) return res.status(403).json({ message: "Not authorized" });
+       if (hoursOld > 24) return res.status(403).json({ message: "Cannot delete logs older than 24h" });
+    }
+
     await prisma.workLog.delete({
       where: { id: Number(req.params.id) },
     });

@@ -22,4 +22,21 @@ const isAdmin = (req, res, next) => {
   next();
 };
 
-module.exports = { verifyToken, isAdmin };
+const prisma = require("../config/prisma");
+
+const logAction = async (userId, action, details, ip) => {
+  try {
+    await prisma.systemLog.create({
+      data: {
+        user_id: userId,
+        action,
+        details,
+        ip_address: ip || "Unknown"
+      }
+    });
+  } catch (err) {
+    console.error("Logging failed:", err.message);
+  }
+};
+
+module.exports = { verifyToken, isAdmin, logAction };
