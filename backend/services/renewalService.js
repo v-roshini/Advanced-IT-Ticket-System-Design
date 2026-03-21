@@ -1,5 +1,6 @@
 const prisma = require("../config/prisma");
 const nodeCron = require("node-cron");
+const { sendNotification, notifyAdmins } = require("./notificationService");
 
 /**
  * Renewal Alert Engine Logic
@@ -80,15 +81,31 @@ async function processRenewalAlerts() {
       // Alert Notification Logic (60, 30, 15, 7, 3, 1 days)
       const alertDays = [60, 30, 15, 7, 3, 1];
       if (alertDays.includes(diffDays)) {
-        // In a real app, send email/notification here.
-        // For this simulation, we'll log it and maybe add a SystemLog.
-        const msg = `${r.asset_name} renewal alert: ${diffDays} days left before expiry (${r.expiry_date.toLocaleDateString()}).`;
-        console.log(`📧 Simulation Email Alert for ${r.customer?.name}: ${msg}`);
+        const msg = `Asset '${r.asset_name}' expires in ${diffDays} days for customer ${r.customer?.name}.`;
         
+        // 🔔 Alert Admin
+        await notifyAdmins(
+          "renewal_due",
+          "📅 Renewal Due Soon",
+          msg,
+          `/renewals`
+        );
+
+        // 🔔 Alert Customer (if they have a portal login)
+        if (r.customer?.portal_user_id) {
+          await sendNotification(
+            r.customer.portal_user_id,
+            "renewal_due",
+            "📅 Asset Expiry Alert",
+            `Your asset '${r.asset_name}' expires in ${diffDays} days. Please contact us for renewal.`,
+            `/renewals`
+          );
+        }
+
         await prisma.systemLog.create({
           data: {
             action: "RENEWAL_ALERT",
-            details: `Alert: ${r.asset_name} for ${r.customer?.name} expires in ${diffDays} days.`,
+            details: `Notification sent: ${msg}`,
           },
         });
       }

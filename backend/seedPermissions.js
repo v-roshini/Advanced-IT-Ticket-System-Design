@@ -14,8 +14,8 @@ async function seedPermissions() {
     'can_view_billing',
     'can_view_amc_contracts',
     'can_generate_invoice',
-    'can_add_internal_note',
-    'can_escalate_ticket'
+    'can_escalate_ticket',
+    'can_view_reports'
   ];
 
   const customerPermissions = [
@@ -30,7 +30,8 @@ async function seedPermissions() {
     'can_receive_renewal_alerts',
     'can_approve_resolution',
     'can_rate_ticket',
-    'can_view_assigned_agent'
+    'can_view_assigned_agent',
+    'can_view_reports'
   ];
 
   console.log("🌱 Seeding default permissions...");

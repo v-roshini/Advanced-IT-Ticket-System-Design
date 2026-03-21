@@ -10,6 +10,20 @@ router.get("/", verifyToken, async (req, res) => {
             orderBy: { created_at: "desc" },
             include: { user: true }
         });
+
+        // Agent Contact Redaction
+        if (req.user.role === 'agent') {
+            const canViewContact = await prisma.permission.findFirst({
+                where: { role: 'agent', permission_key: 'can_view_customer_contact', is_enabled: true }
+            });
+            if (!canViewContact) {
+                customers.forEach(c => {
+                    c.email = "📧 [Hidden]";
+                    c.phone = "📞 [Hidden]";
+                });
+            }
+        }
+
         res.json(customers);
     } catch (err) {
         res.status(500).json({ message: "Error fetching customers" });

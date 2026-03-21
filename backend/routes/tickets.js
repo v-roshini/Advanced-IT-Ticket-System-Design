@@ -3,19 +3,11 @@ const router = express.Router();
 const prisma = require("../config/prisma");
 const { verifyToken } = require("../middleware/authMiddleware");
 const { checkPermission } = require("../middleware/permissionMiddleware");
-const multer = require("multer");
-const path = require("path");
+const { uploadS3 } = require("../services/s3Service");
+const { sendNotification, notifyAdmins } = require("../services/notificationService");
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, "uploads/");
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
-const upload = multer({ storage });
+const upload = uploadS3("tickets");
+
 
 // Helper to get customer ID for a portal user
 async function getCustomerId(userId) {
@@ -134,13 +126,25 @@ router.post("/", verifyToken, checkPermission('can_create_ticket'), upload.array
 
     if (company) company = company.trim().toUpperCase();
 
-    // SLA Deadline Calculation
+    // SLA Deadline Calculation (Legacy - will be replaced by new SLA Engine below)
     const now = new Date();
-    let deadline = new Date();
-    if (priority === 'Critical') deadline.setHours(now.getHours() + 4);
-    else if (priority === 'High') deadline.setHours(now.getHours() + 8);
-    else if (priority === 'Medium') deadline.setHours(now.getHours() + 24);
-    else deadline.setHours(now.getHours() + 48);
+    
+    // SLA Engine: Fetch config and calculate deadlines
+    let sla_response_deadline = null;
+    let sla_resolution_deadline = null;
+    
+    try {
+        const slaConfig = await prisma.sLAConfig.findUnique({
+            where: { priority: priority || "Medium" }
+        });
+        
+        if (slaConfig) {
+            sla_response_deadline = new Date(now.getTime() + slaConfig.first_response_mins * 60000);
+            sla_resolution_deadline = new Date(now.getTime() + slaConfig.resolution_mins * 60000);
+        }
+    } catch (err) {
+        console.error("SLA Config error:", err);
+    }
 
     try {
         const ticketData = {
@@ -154,12 +158,14 @@ router.post("/", verifyToken, checkPermission('can_create_ticket'), upload.array
             category,
             project,
             source: source || "Web Portal",
-            deadline,
+            sla_response_deadline,
+            sla_resolution_deadline,
+            sla_status: "on_track",
             parent_id: parent_id ? Number(parent_id) : null,
             audit_logs: {
                 create: {
                     action: "Created",
-                    details: `Ticket created via ${source || "Web Portal"}`,
+                    details: `Ticket created. SLA Response set for ${sla_response_deadline?.toLocaleString()}`,
                     user_id: req.user.id
                 }
             }
@@ -169,15 +175,25 @@ router.post("/", verifyToken, checkPermission('can_create_ticket'), upload.array
             ticketData.attachments = {
                 create: req.files.map(file => ({
                     file_name: file.originalname,
-                    file_path: file.filename,
+                    file_path: file.location || file.key,
                     file_type: file.mimetype
                 }))
+
             };
         }
 
         const ticket = await prisma.ticket.create({
             data: ticketData,
         });
+
+        // ✅ Notifier Trigger: New Ticket
+        await notifyAdmins(
+            "ticket_created", 
+            "New Ticket Created", 
+            `Ticket ${ticket.ticket_no} created: ${ticket.issue_title}`, 
+            `/tickets/${ticket.id}`
+        );
+
         res.status(201).json({ message: "Ticket created!", ticket });
     } catch (err) {
         console.error(err);
@@ -189,24 +205,67 @@ router.post("/", verifyToken, checkPermission('can_create_ticket'), upload.array
 router.put("/:id", verifyToken, async (req, res) => {
     const { status, agent_id, issue_title, description, priority, category, project, parent_id, rating, rating_comment } = req.body;
 
-    // Only admins can assign/change the agent on a ticket
-    if (agent_id !== undefined && req.user.role !== "admin") {
-        return res.status(403).json({ message: "Only admins can assign agents to tickets." });
-    }
-
-    // Only admins and agents can update ticket status or details
-    if (req.user.role === "client") {
-        // Allow client to reopen or close if status is provided and relevant
-        if (status && (status === "Reopened" || status === "Closed")) {
-            // Proceed
-        } else {
-            return res.status(403).json({ message: "Customers can only Reopen or Close resolved tickets." });
-        }
-    }
-
     try {
-        const oldTicket = await prisma.ticket.findUnique({ where: { id: Number(req.params.id) } });
+        const oldTicket = await prisma.ticket.findUnique({ where: { id: Number(req.params.id) }, include: { customer_ref: true } });
         if (!oldTicket) return res.status(404).json({ message: "Ticket not found" });
+
+        // --- P1 Permissions Logic ---
+        if (req.user.role === "client") {
+            // Check can_approve_resolution
+            const canApprove = await prisma.permission.findFirst({
+                where: { role: 'client', permission_key: 'can_approve_resolution', is_enabled: true }
+            });
+            if (status && (status === "Resolved" || status === "Closed") && !canApprove) {
+                return res.status(403).json({ message: "Permission Denied: You cannot resolve/close tickets." });
+            }
+
+            // Check can_rate_ticket
+            const canRate = await prisma.permission.findFirst({
+                where: { role: 'client', permission_key: 'can_rate_ticket', is_enabled: true }
+            });
+            if (rating !== undefined && !canRate) {
+                return res.status(403).json({ message: "Permission Denied: You cannot submit ratings." });
+            }
+
+            // Strict limitation for clients
+            if (status && !["Reopened", "Closed"].includes(status)) {
+                return res.status(403).json({ message: "Customers can only Reopen or Close resolved tickets." });
+            }
+        } 
+        
+        if (req.user.role === "agent") {
+            // Check can_edit_ticket (if editing details)
+            if (issue_title || description || priority || category || project) {
+                const canEdit = await prisma.permission.findFirst({
+                    where: { role: 'agent', permission_key: 'can_edit_ticket', is_enabled: true }
+                });
+                if (!canEdit) return res.status(403).json({ message: "Permission Denied: You cannot edit ticket details." });
+            }
+
+            // Check can_close_ticket
+            if (status && (status === "Resolved" || status === "Closed")) {
+                const canClose = await prisma.permission.findFirst({
+                    where: { role: 'agent', permission_key: 'can_close_ticket', is_enabled: true }
+                });
+                if (!canClose) return res.status(403).json({ message: "Permission Denied: You cannot resolve/close tickets." });
+            }
+
+            // Check can_reassign_ticket
+            if (agent_id !== undefined && Number(agent_id) !== oldTicket.agent_id) {
+                const canReassign = await prisma.permission.findFirst({
+                    where: { role: 'agent', permission_key: 'can_reassign_ticket', is_enabled: true }
+                });
+                if (!canReassign) return res.status(403).json({ message: "Permission Denied: You cannot reassign agents." });
+            }
+            
+            // Check can_escalate_ticket
+            if (status === "Escalated") {
+                const canEscalate = await prisma.permission.findFirst({
+                    where: { role: 'agent', permission_key: 'can_escalate_ticket', is_enabled: true }
+                });
+                if (!canEscalate) return res.status(403).json({ message: "Permission Denied: You cannot escalate tickets." });
+            }
+        }
 
         const updateData = {};
         const auditEntries = [];
@@ -214,6 +273,40 @@ router.put("/:id", verifyToken, async (req, res) => {
         if (status !== undefined && status !== oldTicket.status) {
             updateData.status = status;
             auditEntries.push({ action: "Status Changed", details: `Changed from ${oldTicket.status} to ${status}`, user_id: req.user.id });
+
+            // SLA Pause/Resume logic
+            const pauseStatuses = ["Waiting_on_Customer", "On_Hold"];
+            const isOldPaused = pauseStatuses.includes(oldTicket.status.replace(/ /g, '_'));
+            const isNewPaused = pauseStatuses.includes(status.replace(/ /g, '_'));
+
+            if (!isOldPaused && isNewPaused) {
+                // Entering Pause state
+                updateData.sla_paused_at = new Date();
+                auditEntries.push({ action: "SLA Paused", details: `Timer paused due to status: ${status}`, user_id: req.user.id });
+            } else if (isOldPaused && !isNewPaused && oldTicket.sla_paused_at) {
+                // Resuming from Pause state
+                const now = new Date();
+                const pauseDurationMs = now.getTime() - new Date(oldTicket.sla_paused_at).getTime();
+                
+                // Extend deadlines by the pause duration
+                const newResponse = oldTicket.sla_response_deadline 
+                    ? new Date(new Date(oldTicket.sla_response_deadline).getTime() + pauseDurationMs)
+                    : null;
+                const newResolution = oldTicket.sla_resolution_deadline
+                    ? new Date(new Date(oldTicket.sla_resolution_deadline).getTime() + pauseDurationMs)
+                    : null;
+                
+                updateData.sla_paused_at = null;
+                updateData.sla_response_deadline = newResponse;
+                updateData.sla_resolution_deadline = newResolution;
+                updateData.total_paused_mins = (oldTicket.total_paused_mins || 0) + Math.round(pauseDurationMs / 60000);
+                
+                auditEntries.push({ 
+                    action: "SLA Resumed", 
+                    details: `Timer resumed. Deadlines extended by ${Math.round(pauseDurationMs / 60000)} mins`, 
+                    user_id: req.user.id 
+                });
+            }
         }
         if (issue_title !== undefined) updateData.issue_title = issue_title;
         if (description !== undefined) updateData.description = description;
@@ -243,6 +336,7 @@ router.put("/:id", verifyToken, async (req, res) => {
 
         const ticket = await prisma.ticket.update({
             where: { id: Number(req.params.id) },
+            include: { customer_ref: true, agent: true },
             data: {
                 ...updateData,
                 audit_logs: {
@@ -250,6 +344,31 @@ router.put("/:id", verifyToken, async (req, res) => {
                 }
             },
         });
+
+        // ✅ Notifier Trigger: Status Change
+        if (status && status !== oldTicket.status) {
+            if (ticket.customer_ref?.portal_user_id) {
+                await sendNotification(
+                    ticket.customer_ref.portal_user_id,
+                    "status_changed",
+                    "Ticket Status Updated",
+                    `Ticket ${ticket.ticket_no} is now ${status}`,
+                    `/tickets/${ticket.id}`
+                );
+            }
+        }
+
+        // ✅ Notifier Trigger: Assignment
+        if (agent_id && (Number(agent_id) !== oldTicket.agent_id)) {
+            await sendNotification(
+                Number(agent_id),
+                "ticket_assigned",
+                "New Ticket Assigned",
+                `You have been assigned Ticket ${ticket.ticket_no}`,
+                `/tickets/${ticket.id}`
+            );
+        }
+
         res.json({ message: "Ticket updated!", ticket });
     } catch (err) {
         console.error(err);
@@ -276,6 +395,14 @@ router.post("/:id/comments", verifyToken, checkPermission('can_add_comment'), as
         return res.status(403).json({ message: "Customers cannot post internal notes." });
     }
 
+    // Agent Internal Note Check
+    if (is_internal && req.user.role === "agent") {
+        const canInternal = await prisma.permission.findFirst({
+            where: { role: 'agent', permission_key: 'can_add_internal_note', is_enabled: true }
+        });
+        if (!canInternal) return res.status(403).json({ message: "Permission Denied: You cannot post internal notes." });
+    }
+
     try {
         const comment = await prisma.ticketComment.create({
             data: {
@@ -284,8 +411,41 @@ router.post("/:id/comments", verifyToken, checkPermission('can_add_comment'), as
                 message,
                 is_internal: is_internal || false,
             },
-            include: { user: { select: { full_name: true, role: true } } }
+            include: { user: { select: { full_name: true, role: true } }, ticket: true }
         });
+        
+        // ✅ Notifier Trigger: User Reply
+        if (req.user.role === 'client') {
+            if (comment.ticket.agent_id) {
+                await sendNotification(
+                    comment.ticket.agent_id,
+                    "customer_reply",
+                    "Customer Replied",
+                    `Customer replied on Ticket ${comment.ticket.ticket_no}`,
+                    `/tickets/${comment.ticket.id}`
+                );
+            }
+            await notifyAdmins(
+                "customer_reply",
+                "Customer Replied",
+                `Reply on Ticket ${comment.ticket.ticket_no}`,
+                `/tickets/${comment.ticket.id}`
+            );
+        } else if (!is_internal) {
+            // Agent replied, notify the customer
+            const customer = await prisma.customer.findUnique({
+                where: { id: comment.ticket.customer_id }
+            });
+            if (customer?.portal_user_id) {
+                await sendNotification(
+                    customer.portal_user_id,
+                    "agent_reply",
+                    "Agent Replied",
+                    `An agent updated Ticket ${comment.ticket.ticket_no}`,
+                    `/tickets/${comment.ticket.id}`
+                );
+            }
+        }
         
         // Log action
         await prisma.ticketAuditLog.create({
@@ -317,7 +477,7 @@ router.post("/:id/attachments", verifyToken, upload.array("attachments", 5), asy
             data: req.files.map(file => ({
                 ticket_id: ticketId,
                 file_name: file.originalname,
-                file_path: file.filename,
+                file_path: file.location || file.key,
                 file_type: file.mimetype
             }))
         });

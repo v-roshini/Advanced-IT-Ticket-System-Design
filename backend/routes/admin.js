@@ -138,4 +138,41 @@ router.patch("/permissions/:id", verifyToken, isAdmin, async (req, res) => {
   }
 });
 
+// Seed permissions via UI
+router.post("/permissions/seed", verifyToken, isAdmin, async (req, res) => {
+  const agentPermissions = [
+    'can_view_tickets', 'can_view_renewals', 'can_create_ticket', 'can_close_ticket',
+    'can_reassign_ticket', 'can_edit_ticket', 'can_delete_ticket', 'can_add_work_log',
+    'can_view_customer_contact', 'can_view_billing', 'can_view_amc_contracts',
+    'can_generate_invoice', 'can_add_internal_note', 'can_escalate_ticket', 'can_view_reports'
+  ];
+
+  const customerPermissions = [
+    'can_view_own_tickets', 'can_create_ticket', 'can_add_comment', 'can_view_work_hours',
+    'can_view_billing', 'can_download_invoice', 'can_view_amc_status', 'can_view_renewals',
+    'can_receive_renewal_alerts', 'can_approve_resolution', 'can_rate_ticket', 'can_view_assigned_agent',
+    'can_view_reports'
+  ];
+
+  try {
+    for (const key of agentPermissions) {
+      await prisma.permission.upsert({
+        where: { role_permission_key: { role: 'agent', permission_key: key } },
+        update: {},
+        create: { role: 'agent', permission_key: key, is_enabled: true }
+      });
+    }
+    for (const key of customerPermissions) {
+      await prisma.permission.upsert({
+        where: { role_permission_key: { role: 'client', permission_key: key } },
+        update: {},
+        create: { role: 'client', permission_key: key, is_enabled: true }
+      });
+    }
+    res.json({ message: "Default permissions seeded successfully" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

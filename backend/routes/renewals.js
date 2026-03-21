@@ -21,9 +21,21 @@ router.get("/", verifyToken, async (req, res) => {
 
     // Role-based filtering: clients only see their own renewals
     if (req.user.role === 'client') {
+        const canView = await prisma.permission.findFirst({
+            where: { role: 'client', permission_key: 'can_view_renewals', is_enabled: true }
+        });
+        if (!canView) return res.status(430).json({ message: "Permission Denied: You cannot view renewals." });
+
         const custId = await getCustomerId(req.user.id);
         if (!custId) return res.status(403).json({ message: "Customer profile not found" });
         where.customer_id = custId;
+    } else if (req.user.role === 'agent') {
+        const canView = await prisma.permission.findFirst({
+            where: { role: 'agent', permission_key: 'can_view_renewals', is_enabled: true }
+        });
+        if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view renewals." });
+
+        if (customerId) where.customer_id = Number(customerId);
     } else {
         if (customerId) where.customer_id = Number(customerId);
     }

@@ -16,9 +16,21 @@ router.get("/", verifyToken, async (req, res) => {
   try {
     let whereClause = {};
     if (req.user.role === 'client') {
+        const canView = await prisma.permission.findFirst({
+            where: { role: 'client', permission_key: 'can_view_billing', is_enabled: true }
+        });
+        if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view billing history." });
+
         const custId = await getCustomerId(req.user.id);
         if (!custId) return res.status(403).json({ message: "Customer profile not found" });
         whereClause.customer_id = custId;
+    }
+
+    if (req.user.role === 'agent') {
+        const canView = await prisma.permission.findFirst({
+            where: { role: 'agent', permission_key: 'can_view_billing', is_enabled: true }
+        });
+        if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view billing records." });
     }
 
     const bills = await prisma.billing.findMany({
@@ -63,14 +75,46 @@ router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (re
       },
     });
 
+    // ✅ P1: Auto-generate Itemized Invoice
+    const invoiceNumber = "INV-" + Date.now().toString().slice(-6);
+    const invoice = await prisma.invoice.create({
+        data: {
+            billing_id: bill.id,
+            invoice_number: invoiceNumber,
+            status: "Draft",
+            due_date: new Date(new Date().setDate(new Date().getDate() + 15)), // 15 days due
+        }
+    });
+
     if (log_ids && log_ids.length > 0) {
+      // Fetch logs for line item details
+      const logs = await prisma.workLog.findMany({
+        where: { id: { in: log_ids.map(id => Number(id)) } },
+        include: { ticket: true, agent: true }
+      });
+
+      // Create Line Items
+      if (logs.length > 0) {
+        await prisma.invoiceLineItem.createMany({
+          data: logs.map(l => ({
+            invoice_id: invoice.id,
+            ticket_ref: l.ticket?.ticket_no || "General",
+            agent_name: l.agent?.full_name || "Unknown",
+            date_logged: l.created_at,
+            hours: 1, // Default to 1 if parsing fails
+            rate: Number(hourly_rate),
+            total: Number(hourly_rate)
+          }))
+        });
+      }
+
       await prisma.workLog.updateMany({
         where: { id: { in: log_ids.map(id => Number(id)) } },
         data: { is_billed: true, billing_id: bill.id }
       });
     }
 
-    res.status(201).json({ message: "Bill created!", bill });
+    res.status(201).json({ message: "Bill and Itemized Invoice created!", bill, invoice });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

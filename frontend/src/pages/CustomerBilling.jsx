@@ -27,6 +27,29 @@ export default function CustomerBilling() {
   const totalSpent = billing.reduce((sum, b) => sum + b.total_amount, 0);
   const pendingAmount = billing.filter(b => !b.invoices[0]?.is_paid).reduce((sum, b) => sum + b.total_amount, 0);
 
+  const handleDownloadPDF = async (invoice) => {
+    try {
+      if (!invoice) return alert("Invoice not found.");
+      const response = await axios.get(`${BASE}/api/invoices/${invoice.id}/download`, {
+        headers,
+        responseType: 'blob'
+      });
+
+      const file = new Blob([response.data], { type: 'application/pdf' });
+      const fileURL = URL.createObjectURL(file);
+      const fileLink = document.createElement('a');
+      fileLink.href = fileURL;
+      fileLink.setAttribute('download', `Invoice-${invoice.invoice_number}.pdf`);
+      document.body.appendChild(fileLink);
+      fileLink.click();
+      fileLink.remove();
+      URL.revokeObjectURL(fileURL);
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      alert("Failed to download PDF.");
+    }
+  };
+
   return (
     <div className="pb-10">
       <div className="flex justify-between items-center mb-10">
@@ -103,26 +126,29 @@ export default function CustomerBilling() {
                    <td className="py-6 px-10">
                       <div className="flex items-center gap-3">
                          <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 italic">#</div>
-                         INV-{new Date(b.created_at).getTime().toString().slice(-6)}
+                         {b.invoices[0]?.invoice_number || `INV-${b.id}`}
                       </div>
                    </td>
                    <td className="py-6 px-10 font-bold text-gray-500 uppercase text-xs tracking-tighter italic">{new Date(b.month + "-01").toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
                    <td className="py-6 px-10 text-lg">₹{b.total_amount.toLocaleString()}</td>
                    <td className="py-6 px-10">
                       <span className={`px-4 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest flex items-center gap-2 w-fit italic
-                        ${b.invoices[0]?.is_paid ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600 animate-pulse border border-red-100'}`}>
-                         {b.invoices[0]?.is_paid ? <><FiCheckCircle /> PAID</> : <><FiAlertCircle /> UNPAID</>}
+                        ${b.invoices[0]?.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600 animate-pulse border border-red-100'}`}>
+                         {b.invoices[0]?.status === 'Paid' ? <><FiCheckCircle /> PAID</> : <><FiAlertCircle /> UNPAID</>}
                       </span>
                    </td>
                    <td className="py-6 px-10 text-right">
-                      <button className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition shadow-sm">
+                      <button 
+                        onClick={() => handleDownloadPDF(b.invoices[0])}
+                        className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition shadow-sm"
+                      >
                          <FiDownload size={18}/>
                       </button>
                    </td>
                 </tr>
               ))}
-           </tbody>
-        </table>
+            </tbody>
+       </table>
       </div>
     </div>
   );

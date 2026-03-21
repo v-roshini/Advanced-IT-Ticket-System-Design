@@ -22,6 +22,20 @@ async function seedTestData() {
   ];
 
   console.log("🚀 Starting Seeding Process...");
+  
+  // Seed Admin
+  await prisma.user.upsert({
+    where: { email: "faf@gmail.com" },
+    update: {},
+    create: {
+      full_name: "System Admin",
+      email: "faf@gmail.com",
+      password: hashedPassword,
+      role: "admin",
+      is_active: true
+    }
+  });
+  console.log("✅ Admin Created: faf@gmail.com");
 
   // Seed Agents
   for (const a of agents) {

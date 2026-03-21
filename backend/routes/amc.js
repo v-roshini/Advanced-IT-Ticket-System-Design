@@ -2,22 +2,41 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../config/prisma");
 const { verifyToken } = require("../middleware/authMiddleware");
-const multer = require("multer");
-const path = require("path");
+const { uploadS3 } = require("../services/s3Service");
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, "uploads/"),
-    filename: (req, file, cb) => cb(null, "amc-" + Date.now() + path.extname(file.originalname))
-});
-const upload = multer({ storage });
+const upload = uploadS3("amc-contracts");
+
 
 // GET all contracts
 router.get("/", verifyToken, async (req, res) => {
     try {
+        // Agent check
+        if (req.user.role === 'agent') {
+            const canView = await prisma.permission.findFirst({
+                where: { role: 'agent', permission_key: 'can_view_amc_contracts', is_enabled: true }
+            });
+            if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view AMC contracts." });
+        }
+
+        // Client check
+        if (req.user.role === 'client') {
+            const canView = await prisma.permission.findFirst({
+                where: { role: 'client', permission_key: 'can_view_amc_status', is_enabled: true }
+            });
+            if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view AMC status." });
+        }
+
         const contracts = await prisma.contractAMC.findMany({
             orderBy: { created_at: "desc" },
-            include: { customer: { select: { name: true, company: true } } },
+            include: { customer: { select: { id: true, name: true, company: true, portal_user_id: true } } },
         });
+
+        // Filter for client
+        if (req.user.role === 'client') {
+            const filtered = contracts.filter(c => c.customer?.portal_user_id === req.user.id);
+            return res.json(filtered);
+        }
+
         res.json(contracts);
     } catch (err) {
         console.error("❌ AMC GET Error:", err.message);
@@ -35,9 +54,9 @@ router.post("/", verifyToken, async (req, res) => {
     try {
         console.log("📝 Creating AMC Contract:", { customer_id, start_date, end_date });
 
-        // Ensure dates are parsed correctly
-        const parsedStart = new Date(start_date);
-        const parsedEnd = new Date(end_date);
+        // Normalize dates to start at 00:00:00 for accurate deduplication check
+        const parsedStart = new Date(new Date(start_date).setHours(0, 0, 0, 0));
+        const parsedEnd = new Date(new Date(end_date).setHours(23, 59, 59, 999));
 
         if (isNaN(parsedStart.getTime()) || isNaN(parsedEnd.getTime())) {
             return res.status(400).json({ message: "Invalid date format provided" });
@@ -58,7 +77,7 @@ router.post("/", verifyToken, async (req, res) => {
         const contract = await prisma.contractAMC.create({
             data: {
                 customer_id: Number(customer_id),
-                company_name: company_name || null,
+                company_name: company_name ? String(company_name).trim().toUpperCase() : null,
                 start_date: parsedStart,
                 end_date: parsedEnd,
                 monthly_hours: Number(monthly_hours) || 10,
@@ -107,7 +126,8 @@ router.put("/:id/hours", verifyToken, async (req, res) => {
 router.post("/:id/upload", verifyToken, upload.single("pdf"), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-        const filePath = `/uploads/${req.file.filename}`;
+        const filePath = req.file.location || req.file.key;
+
 
         const contract = await prisma.contractAMC.update({
             where: { id: Number(req.params.id) },

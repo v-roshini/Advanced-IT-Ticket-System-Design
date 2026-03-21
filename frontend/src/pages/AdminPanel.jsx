@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { FiUsers, FiFileText, FiSettings, FiShield, FiPlus, FiX } from "react-icons/fi";
 import axios from "axios";
 
-const BASE = process.env.REACT_APP_URL;
+const BASE = process.env.REACT_APP_URL || process.env.REACT_APP_API_URL || "http://localhost:5000";
 const tabs = ["Overview", "Users", "AMC Contracts", "Billing", "Permissions", "System Logs", "Settings"];
 
 // ─────────────────────────────────────────
@@ -722,9 +722,26 @@ function AdminPermissions() {
   const fetchPermissions = async () => {
     try {
       const res = await axios.get(`${BASE}/api/admin/permissions`, { headers });
-      setPermissions(res.data);
-    } catch (err) { console.error(err); }
+      setPermissions(Array.isArray(res.data) ? res.data : []);
+    } catch (err) {
+      console.error(err);
+      alert("Error fetching permissions. Check backend connection.");
+    }
     finally { setLoading(false); }
+  };
+
+  const seedPermissions = async () => {
+    if (!window.confirm("Initialize default permission matrix?")) return;
+    try {
+      setLoading(true);
+      await axios.post(`${BASE}/api/admin/permissions/seed`, {}, { headers });
+      alert("✅ Permissions seeded successfully!");
+      fetchPermissions();
+    } catch (err) {
+      alert("Seeding failed: " + (err.response?.data?.message || err.message));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const togglePermission = async (id, currentStatus) => {
@@ -753,26 +770,50 @@ function AdminPermissions() {
   );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      {/* Agent Permissions */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-blue-900 text-white p-5">
-           <h3 className="text-lg font-black uppercase tracking-widest text-center">Support Team Access</h3>
-           <p className="text-[10px] text-blue-200 text-center uppercase font-bold mt-1">Control Agent Capabilities</p>
+    <div>
+      {/* Seed Button for empty state */}
+      {!loading && agentPerms.length === 0 && clientPerms.length === 0 && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-8 text-center">
+          <p className="text-yellow-700 font-bold mb-3 italic">Permission table is currently empty.</p>
+          <button onClick={seedPermissions} className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition shadow-lg">
+            Initialize Default Permissions
+          </button>
         </div>
-        <div className="divide-y divide-gray-50">
-          {loading ? <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p> : agentPerms.map(p => <PermissionRow key={p.id} p={p} />)}
-        </div>
-      </div>
+      )}
 
-      {/* Client Permissions */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="bg-blue-600 text-white p-5">
-           <h3 className="text-lg font-black uppercase tracking-widest text-center">Customer Portal Access</h3>
-           <p className="text-[10px] text-blue-100 text-center uppercase font-bold mt-1">Control Portal Visibility</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* Agent Permissions */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-blue-900 text-white p-5">
+             <h3 className="text-lg font-black uppercase tracking-widest text-center">Support Team Access</h3>
+             <p className="text-[10px] text-blue-200 text-center uppercase font-bold mt-1">Control Agent Capabilities</p>
+          </div>
+          <div className="divide-y divide-gray-50 min-h-[100px]">
+            {loading ? (
+              <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p>
+            ) : agentPerms.length > 0 ? (
+              agentPerms.map(p => <PermissionRow key={p.id} p={p} />)
+            ) : (
+              <p className="p-10 text-center text-gray-400 text-sm">No agent permissions found.</p>
+            )}
+          </div>
         </div>
-        <div className="divide-y divide-gray-50">
-           {loading ? <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p> : clientPerms.map(p => <PermissionRow key={p.id} p={p} />)}
+
+        {/* Client Permissions */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-blue-600 text-white p-5">
+             <h3 className="text-lg font-black uppercase tracking-widest text-center">Customer Portal Access</h3>
+             <p className="text-[10px] text-blue-100 text-center uppercase font-bold mt-1">Control Portal Visibility</p>
+          </div>
+          <div className="divide-y divide-gray-50 min-h-[100px]">
+             {loading ? (
+               <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p>
+             ) : clientPerms.length > 0 ? (
+               clientPerms.map(p => <PermissionRow key={p.id} p={p} />)
+             ) : (
+               <p className="p-10 text-center text-gray-400 text-sm">No portal permissions found.</p>
+             )}
+          </div>
         </div>
       </div>
     </div>

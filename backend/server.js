@@ -20,6 +20,8 @@ app.use("/api/invoices", require("./routes/invoices"));
 app.use("/api/admin", require("./routes/admin")); // P1: Admin Panel Logic
 app.use("/ai", require("./routes/ai"));
 app.use("/renewals", require("./routes/renewals"));
+app.use("/notifications", require("./routes/notifications"));
+app.use("/api/reports", require("./routes/reports"));
 
 app.use("/uploads", express.static("uploads"));
 
@@ -36,7 +38,35 @@ process.on("unhandledRejection", (err) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
+const http = require("http");
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*", // Adjust in production
+        methods: ["GET", "POST"]
+    }
+});
+
+// Socket.io Connection
+io.on("connection", (socket) => {
+    console.log("🔌 New Client Connected:", socket.id);
+
+    socket.on("join", (userId) => {
+        socket.join(`user_${userId}`);
+        console.log(`👤 User ${userId} joined their notification room.`);
+    });
+
+    socket.on("disconnect", () => {
+        console.log("🔌 Client Disconnected:", socket.id);
+    });
+});
+
+// Export io for use in other files
+global.io = io;
+
+server.listen(PORT, async () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     const prisma = require("./config/prisma");
     try {
@@ -49,4 +79,9 @@ app.listen(PORT, async () => {
     // --- Renewal Manager Module ---
     const { startRenewalCron } = require("./services/renewalService");
     startRenewalCron();
+
+    // --- SLA Manager & Engine Module ---
+    const { startSLACron } = require("./services/slaService");
+    startSLACron();
 });
+

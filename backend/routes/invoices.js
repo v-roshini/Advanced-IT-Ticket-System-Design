@@ -114,18 +114,53 @@ router.put("/:id/paid", verifyToken, async (req, res) => {
   }
 });
 
-// Update standard status (Draft -> Sent, Overdue, Cancelled)
-router.put("/:id/status", verifyToken, async (req, res) => {
+const { generatePDFBuffer } = require("../services/pdfService");
+
+// Download Invoice as PDF
+router.get("/:id/download", verifyToken, async (req, res) => {
   try {
-    const { status } = req.body;
-    await prisma.invoice.update({
-      where: { id: Number(req.params.id) },
-      data: { status },
+    const invoiceId = Number(req.params.id);
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        billing: {
+          include: { customer: true }
+        },
+        line_items: true
+      }
     });
-    res.json({ message: `Status explicitly updated to ${status}` });
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    // Prepare data for EJS template
+    const pdfData = {
+      invoice_no: invoice.invoice_number,
+      created_at: invoice.created_at,
+      customer_name: invoice.billing?.customer?.name || "Customer",
+      company_name: invoice.billing?.customer?.company || "N/A",
+      customer_email: invoice.billing?.customer?.email || "N/A",
+      items: invoice.line_items.map(li => ({
+        description: li.ticket_ref || "Service",
+        quantity: li.hours || 1,
+        unit_price: li.rate || 0,
+        amount: li.total || 0
+      })),
+      subtotal: invoice.total_amout_with_tax - invoice.total_tax,
+      tax_percentage: invoice.gst_percentage,
+      tax_amount: invoice.total_tax,
+      total_amount: invoice.total_amout_with_tax
+    };
+
+    const pdfBuffer = await generatePDFBuffer("invoice", pdfData);
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename=Invoice-${invoice.invoice_number}.pdf`);
+    res.send(pdfBuffer);
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error("❌ PDF Route Error:", err.message);
+    res.status(500).json({ message: "Failed to generate PDF invoice" });
   }
 });
 
 module.exports = router;
+

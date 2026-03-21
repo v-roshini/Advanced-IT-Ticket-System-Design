@@ -5,15 +5,16 @@ import {
 } from "react-icons/fi";
 
 const navItems = [
-    { label: "Dashboard", path: "/dashboard", icon: <FiGrid /> },
-    { label: "Tickets", path: "/tickets", icon: <FiTag /> },
-    { label: "Customers", path: "/customers", icon: <FiUsers /> },
-    { label: "Agents", path: "/agents", icon: <FiUsers /> },
-    { label: "AMC Contracts", path: "/amc", icon: <FiFileText /> },
-    { label: "Billing", path: "/billing", icon: <FiDollarSign /> },
-    { label: "Work Log", path: "/worklog", icon: <FiClock /> },
+    { label: "Dashboard", path: "/dashboard", icon: <FiGrid /> }, 
+    { label: "Tickets", path: "/tickets", icon: <FiTag />, permissionKey: "can_view_tickets" },
+    { label: "Customers", path: "/customers", icon: <FiUsers />, permissionKey: "can_view_customers" },
+    { label: "Agents", path: "/agents", icon: <FiUsers />, permissionKey: "can_view_agents" },
+    { label: "AMC Contracts", path: "/amc", icon: <FiFileText />, permissionKey: "can_view_amc_contracts" },
+    { label: "Billing", path: "/billing", icon: <FiDollarSign />, permissionKey: "can_view_billing" },
+    { label: "Work Log", path: "/worklog", icon: <FiClock />, permissionKey: "can_add_work_log" },
     { label: "Admin Panel", path: "/admin", icon: <FiShield /> },
-    { label: "Renewals", path: "/renewals", icon: <FiRefreshCw /> },
+    { label: "Renewals", path: "/renewals", icon: <FiRefreshCw />, permissionKey: "can_view_renewals" },
+    { label: "Reports", path: "/reports", icon: <FiFileText />, permissionKey: "can_view_reports" },
     { label: "AI Chat", path: "/ai-chat", icon: <FiMessageSquare />, badge: "AI" },
 ];
 
@@ -47,12 +48,22 @@ export default function Sidebar() {
                 {navItems
                     .filter((item) => {
                         if (user.role === "admin") return true;
-                        if (user.role === "agent") {
-                            return ["Dashboard", "Tickets", "Work Log", "Renewals"].includes(item.label);
+                        
+                        // Basic common items for everyone
+                        const common = ["Dashboard"];
+                        if (item.label === "AI Chat" && user.role === "client") return true;
+                        if (common.includes(item.label)) return true;
+
+                        // Check permissions
+                        if (item.permissionKey && user.permissions) {
+                            // If user is client, can_view_tickets maps to can_view_own_tickets
+                            let key = item.permissionKey;
+                            if (user.role === 'client' && key === 'can_view_tickets') key = 'can_view_own_tickets';
+                            if (user.role === 'client' && key === 'can_view_amc_contracts') key = 'can_view_amc_status';
+                            
+                            return user.permissions.includes(key);
                         }
-                        if (user.role === "client") {
-                            return ["Dashboard", "Tickets", "AI Chat", "Renewals", "Billing"].includes(item.label);
-                        }
+
                         return false;
                     })
                     .map((item) => {
@@ -66,6 +77,7 @@ export default function Sidebar() {
                                         else if (item.label === 'Tickets') navigate('/customer/tickets');
                                         else if (item.label === 'Renewals') navigate('/customer/renewals');
                                         else if (item.label === 'Billing') navigate('/customer/billing');
+                                        else if (item.label === 'Reports') navigate('/customer/reports');
                                         else navigate(item.path);
                                     }
                                     else navigate(item.path);

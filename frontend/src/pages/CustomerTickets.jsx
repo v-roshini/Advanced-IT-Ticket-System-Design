@@ -35,6 +35,15 @@ export default function CustomerTickets() {
     finally { setLoading(false); }
   };
 
+  const handleQuickApprove = async (e, id) => {
+    e.stopPropagation(); // Prevent card navigation
+    try {
+      await axios.put(`${BASE}/tickets/${id}`, { status: "Closed" }, { headers });
+      fetchTickets();
+      alert("✅ Ticket marked as resolved and closed!");
+    } catch (err) { alert("Approval failed"); }
+  };
+
   const filtered = tickets.filter(t => {
     const matchSearch = t.issue_title.toLowerCase().includes(search.toLowerCase()) || t.ticket_no.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'All' || t.status === filterStatus;
@@ -120,7 +129,7 @@ export default function CustomerTickets() {
                <div className="flex gap-2">
                   <button className="p-3 bg-gray-50 text-gray-400 rounded-xl hover:bg-blue-50 hover:text-blue-600 transition"><FiMessageSquare size={16}/></button>
                   {t.status === 'Resolved' && (
-                    <button className="p-3 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition flex items-center gap-2 font-black text-[9px] uppercase tracking-widest">
+                    <button onClick={(e) => handleQuickApprove(e, t.id)} className="p-3 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 transition flex items-center gap-2 font-black text-[9px] uppercase tracking-widest">
                        <FiCheckCircle size={14}/> Approve
                     </button>
                   )}

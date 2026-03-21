@@ -119,84 +119,33 @@ export default function Billing() {
     }
   };
 
-  const handleDownloadPDF = async (invoice, bill) => {
-    const doc = new jsPDF();
-    const customer = bill.customer || { name: "N/A", company: "N/A", address: "No Address Provided" };
+  const handleDownloadPDF = async (invoice) => {
+    try {
+      const response = await axios.get(`${BASE}/api/invoices/${invoice.id}/download`, {
+        headers,
+        responseType: 'blob'
+      });
 
-    // Header
-    doc.setFontSize(22);
-    doc.setFont("helvetica", "bold");
-    doc.text("LINOTEC SOLUTIONS", 14, 22);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("123 Tech Park, Phase 1", 14, 30);
-    doc.text("GSTIN: 29AABCU9603R1ZQ", 14, 35);
-
-    // Invoice Meta
-    doc.setFontSize(15);
-    doc.setFont("helvetica", "bold");
-    doc.text("TAX INVOICE", 150, 22);
-    
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Invoice No: ${invoice.invoice_number}`, 150, 30);
-    doc.text(`Date: ${new Date(invoice.issue_date || invoice.created_at).toLocaleDateString()}`, 150, 35);
-    doc.text(`Status: ${invoice.status}`, 150, 40);
-
-    // Billing To
-    doc.setDrawColor(200);
-    doc.line(14, 45, 196, 45);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    doc.text("Bill To:", 14, 55);
-    doc.setFont("helvetica", "normal");
-    doc.text(`${customer.name}`, 14, 61);
-    doc.text(`${customer.company}`, 14, 67);
-
-    // Table
-    const tableData = invoice.line_items?.length > 0 
-      ? invoice.line_items.map((item, i) => [
-          i + 1,
-          item.ticket_ref || 'Tech Support (Hourly)',
-          item.hours.toString(),
-          `Rs.${item.rate.toFixed(2)}`,
-          `Rs.${item.total.toFixed(2)}`
-        ])
-      : [
-          [1, `Standard Billing - ${bill.month}`, bill.hours_used.toString(), `Rs.${bill.hourly_rate}`, `Rs.${bill.total_amount}`]
-        ];
-
-    doc.autoTable({
-      startY: 80,
-      head: [['Sr. No', 'Description', 'Hours / Qty', 'Rate', 'Amount']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [30, 64, 175] }
-    });
-
-    const finalY = doc.lastAutoTable.finalY + 10;
-    
-    // Summary
-    doc.setFontSize(10);
-    doc.text(`Subtotal: Rs.${bill.total_amount}`, 140, finalY);
-    doc.text(`GST (${invoice.gst_percentage}%): Rs.${invoice.total_tax}`, 140, finalY + 6);
-    
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Total Amount: Rs.${invoice.total_amout_with_tax}`, 130, finalY + 16);
-
-    // Bank Details
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "bold");
-    doc.text("Bank Transfer Details:", 14, finalY + 30);
-    doc.setFont("helvetica", "normal");
-    doc.text("Bank: HDFC Bank", 14, finalY + 35);
-    doc.text("Account No: 50200012345678", 14, finalY + 40);
-    doc.text("IFSC Code: HDFC000123", 14, finalY + 45);
-
-    doc.save(`${invoice.invoice_number}.pdf`);
+      // Create a blob from the response
+      const file = new Blob([response.data], { type: 'application/pdf' });
+      
+      // Build a temporary link to trigger download
+      const fileURL = URL.createObjectURL(file);
+      const fileLink = document.createElement('a');
+      fileLink.href = fileURL;
+      fileLink.setAttribute('download', `Invoice-${invoice.invoice_number}.pdf`);
+      document.body.appendChild(fileLink);
+      fileLink.click();
+      
+      // Cleanup
+      fileLink.remove();
+      URL.revokeObjectURL(fileURL);
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      alert("Failed to download PDF from server.");
+    }
   };
+
 
   const handleMarkPaid = async (invoiceId) => {
     const method = window.prompt("Payment Method (e.g. Bank Transfer, UPI):", "Bank Transfer");

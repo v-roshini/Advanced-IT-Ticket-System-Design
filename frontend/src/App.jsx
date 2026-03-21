@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
+import Navbar from "./components/Navbar";
 import Dashboard from "./pages/Dashboard";
 import Tickets from "./pages/Tickets";
 import CreateTicket from "./pages/CreateTicket";
@@ -16,6 +17,8 @@ import Signup from "./pages/Signup";
 import Agents from "./pages/Agents";
 import AgentProfile from "./pages/AgentProfile";
 import Renewals from "./pages/Renewals";
+import Reports from "./pages/Reports";
+import CustomerReports from "./pages/CustomerReports";
 import CustomerLogin from "./pages/CustomerLogin";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerTickets from "./pages/CustomerTickets";
@@ -47,8 +50,11 @@ const PublicRoute = ({ children }) => {
 const Layout = ({ children }) => (
   <div className="flex">
     <Sidebar />
-    <div className="ml-64 flex-1 bg-blue-50 min-h-screen p-6">
-      {children}
+    <div className="ml-64 flex-1 bg-blue-50/50 min-h-screen">
+      <Navbar />
+      <div className="p-8">
+        {children}
+      </div>
     </div>
   </div>
 );
@@ -77,12 +83,14 @@ function App() {
         <Route path="/agents" element={<PrivateRoute><Layout><Agents /></Layout></PrivateRoute>} />
         <Route path="/agents/:id" element={<PrivateRoute><Layout><AgentProfile /></Layout></PrivateRoute>} />
         <Route path="/renewals" element={<PrivateRoute><Layout><Renewals /></Layout></PrivateRoute>} />
+        <Route path="/reports" element={<PrivateRoute><Layout><Reports /></Layout></PrivateRoute>} />
 
         {/* Customer Portal Specific */}
         <Route path="/customer/dashboard" element={<PrivateRoute><Layout><CustomerDashboard /></Layout></PrivateRoute>} />
         <Route path="/customer/tickets" element={<PrivateRoute><Layout><CustomerTickets /></Layout></PrivateRoute>} />
         <Route path="/customer/billing" element={<PrivateRoute><Layout><CustomerBilling /></Layout></PrivateRoute>} />
         <Route path="/customer/renewals" element={<PrivateRoute><Layout><CustomerRenewals /></Layout></PrivateRoute>} />
+        <Route path="/customer/reports" element={<PrivateRoute><Layout><CustomerReports /></Layout></PrivateRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -72,6 +72,12 @@ router.post("/login", async (req, res) => {
             { expiresIn: "7d" }
         );
 
+        // Success: Fetch permissions for this role
+        const permissions = await prisma.permission.findMany({
+            where: { role: user.role, is_enabled: true },
+            select: { permission_key: true }
+        });
+
         res.json({
             message: "Login successful!",
             token,
@@ -80,6 +86,7 @@ router.post("/login", async (req, res) => {
                 full_name: user.full_name,
                 email: user.email,
                 role: user.role,
+                permissions: permissions.map(p => p.permission_key)
             },
         });
     } catch (err) {
