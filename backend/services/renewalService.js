@@ -125,7 +125,7 @@ function startRenewalCron() {
   console.log("🕒 Renewal Cron Job scheduled daily at 08:00 AM.");
   
   // Optional: Run once at startup for demonstration/validation
-  processRenewalAlerts();
+  // processRenewalAlerts();
 }
 
 module.exports = {

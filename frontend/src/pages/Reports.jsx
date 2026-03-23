@@ -7,7 +7,7 @@ import {
 import { FaFileExcel, FaFilePdf, FaFilter, FaCalendarAlt } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 const API_URL = `${process.env.REACT_APP_URL}/api` || "http://localhost:5000/api";
 
@@ -74,7 +74,7 @@ const Reports = () => {
     if (tableData.length > 0) {
       const headers = Object.keys(tableData[0]);
       const body = tableData.map(row => headers.map(h => row[h]));
-      doc.autoTable({
+      autoTable(doc, {
         startY: 30,
         head: [headers],
         body: body,
@@ -96,7 +96,7 @@ const Reports = () => {
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <h3 className="text-lg font-semibold mb-4">Tickets by Status</h3>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie data={data.summaryByStatus} dataKey="_count.id" nameKey="status" cx="50%" cy="50%" outerRadius={80} label>
                       {data.summaryByStatus.map((entry, index) => (
@@ -112,7 +112,7 @@ const Reports = () => {
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <h3 className="text-lg font-semibold mb-4">Tickets by Priority</h3>
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={data.summaryByPriority}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="priority" />
@@ -164,7 +164,7 @@ const Reports = () => {
           <div className="space-y-6">
              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-80">
                 <h3 className="text-lg font-semibold mb-4">Revenue Trend</h3>
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={Object.entries(data.revenueTrend).map(([key, value]) => ({ month: key, revenue: value }))}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />

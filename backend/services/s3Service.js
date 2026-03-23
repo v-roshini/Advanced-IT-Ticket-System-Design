@@ -13,32 +13,89 @@ const s3 = new S3Client({
     }
 });
 
-/**
- * Common configuration for S3 Multer.
- */
-const uploadS3 = (folder = "attachments") => multer({
-    storage: multerS3({
-        s3: s3,
-        bucket: process.env.AWS_BUCKET_NAME,
-        acl: "public-read", // Or 'private' based on requirements
-        contentType: multerS3.AUTO_CONTENT_TYPE,
-        key: (req, file, cb) => {
-            const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
-            cb(null, `${folder}/${uniqueSuffix}${path.extname(file.originalname)}`);
-        }
-    })
-});
+const fs = require('fs');
 
 /**
- * Retrieve public URL or sign URL for a file.
- * (Simple concatenation if public, otherwise needs GetObjectCommand signed URL)
+ * Robust S3 + Local Fallback Uploader
  */
+const _uploadS3Intercepter = (folder) => {
+    // 1. Prepare Local Storage
+    const diskStorage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            const dir = path.join(__dirname, '../uploads', folder);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            cb(null, dir);
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname);
+            cb(null, `${uniqueSuffix}${ext}`);
+        }
+    });
+
+    // 2. Prepare S3 Storage
+    const s3Storage = multerS3({
+        s3: s3,
+        bucket: process.env.AWS_BUCKET_NAME || "fallback",
+        metadata: (req, file, cb) => cb(null, { fieldName: file.fieldname }),
+        key: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname);
+            cb(null, `${folder}/${uniqueSuffix}${ext}`);
+        }
+    });
+
+    const uploadLocal = multer({ storage: diskStorage });
+    const uploadS3 = multer({ storage: s3Storage });
+
+    const handleFiles = (req, files) => {
+        if (!files) return;
+        const list = Array.isArray(files) ? files : [files];
+        list.forEach(f => {
+            if (!f.location) {
+                // If S3 didn't set a location, it's local
+                f.location = `/uploads/${folder}/${f.filename}`;
+            }
+        });
+    };
+
+    return {
+        array: (fieldName, count) => (req, res, next) => {
+            // Try S3 first
+            uploadS3.array(fieldName, count)(req, res, (err) => {
+                if (err) {
+                    console.warn(`⚠️ S3 Upload failed, falling back to local storage: ${err.message}`);
+                    return uploadLocal.array(fieldName, count)(req, res, (localErr) => {
+                        if (localErr) return next(localErr);
+                        handleFiles(req, req.files);
+                        next();
+                    });
+                }
+                next();
+            });
+        },
+        single: (fieldName) => (req, res, next) => {
+            // Try S3 first
+            uploadS3.single(fieldName)(req, res, (err) => {
+                if (err) {
+                    console.warn(`⚠️ S3 Upload failed, falling back to local storage: ${err.message}`);
+                    return uploadLocal.single(fieldName)(req, res, (localErr) => {
+                        if (localErr) return next(localErr);
+                        handleFiles(req, req.file);
+                        next();
+                    });
+                }
+                next();
+            });
+        }
+    };
+};
+
 const getFileUrl = (key) => {
     if (process.env.S3_PUBLIC_URL_PREFIX) {
         return `${process.env.S3_PUBLIC_URL_PREFIX}/${key}`;
     }
-    // Fallback or custom logic here
     return key;
 };
 
-module.exports = { uploadS3, getFileUrl, s3 };
+module.exports = { uploadS3: _uploadS3Intercepter, getFileUrl, s3 };

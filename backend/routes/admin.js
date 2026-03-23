@@ -4,6 +4,32 @@ const prisma = require("../config/prisma");
 const { verifyToken, isAdmin } = require("../middleware/authMiddleware");
 
 // ─────────────────────────────────────────
+// DASHBOARD STATS
+// ─────────────────────────────────────────
+
+// Get high-level stats for the admin overview
+router.get("/stats", verifyToken, isAdmin, async (req, res) => {
+  try {
+    const [totalAgents, activeContracts, pendingInvoices, adminUsers] = await Promise.all([
+      prisma.user.count({ where: { role: "agent" } }),
+      prisma.contractAMC.count({ where: { end_date: { gte: new Date() } } }),
+      prisma.invoice.count({ where: { status: "Draft" } }), // or "Sent" if that's what's considered pending
+      prisma.user.count({ where: { role: "admin" } })
+    ]);
+
+    res.json({
+      totalAgents,
+      activeContracts,
+      pendingInvoices,
+      adminUsers
+    });
+  } catch (err) {
+    console.error("Stats Fetch Error:", err);
+    res.status(500).json({ message: "Error fetching dashboard stats" });
+  }
+});
+
+// ─────────────────────────────────────────
 // USER MANAGEMENT
 // ─────────────────────────────────────────
 
@@ -98,8 +124,8 @@ router.get("/backup", verifyToken, isAdmin, async (req, res) => {
 // PERMISSION ENGINE
 // ─────────────────────────────────────────
 
-// Get all permissions matrix
-router.get("/permissions", verifyToken, isAdmin, async (req, res) => {
+// Get all permissions matrix (readable by all users to apply frontend UI restrictions)
+router.get("/permissions", verifyToken, async (req, res) => {
   try {
     const permissions = await prisma.permission.findMany({
       orderBy: [{ role: "asc" }, { permission_key: "asc" }],

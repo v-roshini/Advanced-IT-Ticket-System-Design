@@ -237,7 +237,7 @@ export default function Dashboard() {
               <h3 className="text-lg font-bold text-gray-800 mb-6">Tickets Over Time</h3>
               <div className="h-72">
                 {trendData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={288}>
                     <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorCreated" x1="0" y1="0" x2="0" y2="1">
@@ -272,7 +272,7 @@ export default function Dashboard() {
               <h3 className="text-lg font-bold text-gray-800 mb-2">Tickets by Priority</h3>
               <div className="flex-1 min-h-[250px] relative">
                 {priorityData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie
                         data={priorityData}

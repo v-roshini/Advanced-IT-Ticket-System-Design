@@ -22,19 +22,15 @@ function AdminOverview() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const [usersRes, contractsRes, invoicesRes] = await Promise.all([
-          axios.get(`${BASE}/agents`, { headers }),
-          axios.get(`${BASE}/amc`, { headers }),
-          axios.get(`${BASE}/api/invoices`, { headers }),
-        ]);
+        const res = await axios.get(`${BASE}/api/admin/stats`, { headers });
         setStats({
-          totalUsers: usersRes.data.length,
-          activeContracts: contractsRes.data.filter(c => new Date(c.end_date) >= new Date()).length,
-          pendingInvoices: invoicesRes.data.filter((i) => i.status === "Pending").length,
-          adminUsers: 1,
+          totalUsers: res.data.totalAgents,
+          activeContracts: res.data.activeContracts,
+          pendingInvoices: res.data.pendingInvoices,
+          adminUsers: res.data.adminUsers,
         });
       } catch (err) {
-        console.error(err);
+        console.error("Fetch Stats Error:", err);
       }
     };
     fetchStats();

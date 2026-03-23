@@ -95,7 +95,7 @@ const CustomerReports = () => {
                   <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
                     <h3 className="text-xl font-bold mb-6 text-gray-800">Ticket Breakdown</h3>
                     <div className="h-72">
-                      <ResponsiveContainer width="100%" height="100%">
+                      <ResponsiveContainer width="100%" height={250}>
                          <PieChart>
                             <Pie 
                                 data={data} 

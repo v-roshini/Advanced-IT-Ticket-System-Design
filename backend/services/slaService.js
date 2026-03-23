@@ -107,7 +107,7 @@ function startSLACron() {
   console.log("🕒 SLA Monitoring Engine scheduled every 1 minute.");
   
   // Run once at startup
-  processSLAEngine();
+  // processSLAEngine();
 }
 
 module.exports = {
