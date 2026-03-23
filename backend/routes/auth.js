@@ -52,7 +52,7 @@ router.post("/register", async (req, res) => {
 
 // LOGIN
 router.post("/login", async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
 
     if (!email || !password)
         return res.status(400).json({ message: "Email and password required" });
@@ -61,6 +61,13 @@ router.post("/login", async (req, res) => {
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user)
             return res.status(401).json({ message: "Invalid email or password" });
+
+        // ✅ If role is provided from frontend, enforce it strictly
+        if (role && user.role !== role) {
+            return res.status(403).json({
+                message: `Unauthorized access: This account is registered as ${user.role}.`
+            });
+        }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch)

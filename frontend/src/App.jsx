@@ -19,7 +19,6 @@ import AgentProfile from "./pages/AgentProfile";
 import Renewals from "./pages/Renewals";
 import Reports from "./pages/Reports";
 import CustomerReports from "./pages/CustomerReports";
-import CustomerLogin from "./pages/CustomerLogin";
 import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerTickets from "./pages/CustomerTickets";
 import CustomerBilling from "./pages/CustomerBilling";
@@ -44,7 +43,16 @@ const PrivateRoute = ({ children }) => {
 // Redirects already-logged-in users away from login/signup to dashboard
 const PublicRoute = ({ children }) => {
   const token = localStorage.getItem("token");
-  return token ? <Navigate to="/dashboard" replace /> : children;
+  const userStr = localStorage.getItem("user");
+  if (!token) return children;
+  
+  try {
+    const user = JSON.parse(userStr);
+    if (user?.role === "client") return <Navigate to="/customer/dashboard" replace />;
+    return <Navigate to="/dashboard" replace />;
+  } catch (e) {
+    return <Navigate to="/dashboard" replace />;
+  }
 };
 
 const Layout = ({ children }) => (
@@ -65,7 +73,7 @@ function App() {
       <Routes>
         {/* Public routes — redirect to /dashboard if already logged in */}
         <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/customer/login" element={<PublicRoute><CustomerLogin /></PublicRoute>} />
+
         <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
 
         {/* Protected routes — redirect to / if not logged in */}
