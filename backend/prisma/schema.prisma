@@ -319,6 +319,8 @@ model Renewal {
   cost              Float?
   currency          String          @default("INR")
   auto_renew        Boolean         @default(false)
+  remind_one_week   Boolean         @default(true)
+  remind_one_month  Boolean         @default(true)
   status            RenewalStatus   @default(active)
   assigned_agent_id Int?
   notes             String?         @db.Text
@@ -334,6 +336,7 @@ model Renewal {
   @@index([created_by_id])
   @@map("renewals")
 }
+
 
 model SLAConfig {
   id                  Int      @id @default(autoincrement())

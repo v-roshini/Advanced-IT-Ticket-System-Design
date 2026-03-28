@@ -143,6 +143,8 @@ router.post("/", verifyToken, async (req, res) => {
     cost,
     currency,
     auto_renew,
+    remind_one_week,
+    remind_one_month,
     notes,
     assigned_agent_id,
   } = req.body;
@@ -159,6 +161,8 @@ router.post("/", verifyToken, async (req, res) => {
         cost: cost ? parseFloat(cost) : null,
         currency: currency || "INR",
         auto_renew: !!auto_renew,
+        remind_one_week: remind_one_week !== undefined ? !!remind_one_week : true,
+        remind_one_month: remind_one_month !== undefined ? !!remind_one_month : true,
         notes,
         assigned_agent_id: assigned_agent_id ? Number(assigned_agent_id) : null,
         created_by_id: req.user.id,
@@ -181,6 +185,18 @@ router.put("/:id", verifyToken, async (req, res) => {
   if (updateData.expiry_date) updateData.expiry_date = new Date(updateData.expiry_date);
   if (updateData.cost) updateData.cost = parseFloat(updateData.cost);
   if (updateData.assigned_agent_id) updateData.assigned_agent_id = Number(updateData.assigned_agent_id);
+
+  // Ensure booleans for new fields
+  if (updateData.remind_one_week !== undefined) updateData.remind_one_week = !!updateData.remind_one_week;
+  if (updateData.remind_one_month !== undefined) updateData.remind_one_month = !!updateData.remind_one_month;
+
+  // Cleanup relation objects that Prisma update might reject
+  delete updateData.customer;
+  delete updateData.assigned_agent;
+  delete updateData.created_by;
+  delete updateData.id; // avoid updating ID
+  delete updateData.created_at;
+  delete updateData.updated_at;
 
   try {
     const renewal = await prisma.renewal.update({

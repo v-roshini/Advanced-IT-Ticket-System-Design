@@ -19,7 +19,7 @@ export default function AIChat() {
     {
       role: "assistant",
       content:
-        "👋 Hello! I'm your AI Support Agent for Linotec. I'll try to resolve your issue right here — no ticket needed!\n\nDescribe your problem and I'll walk you through a solution.",
+        "👋 Hello! I'm your AI Support Agent for Lenok. I'll try to resolve your issue right here — no ticket needed!\n\nDescribe your problem and I'll walk you through a solution.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -219,16 +219,16 @@ export default function AIChat() {
             <div className={`max-w-[82%] flex gap-3 ${m.role === "user" ? "flex-row-reverse" : ""}`}>
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${m.role === "user"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
+                  ? "bg-blue-600 text-white"
+                  : "bg-gradient-to-br from-blue-500 to-indigo-600 text-white"
                   }`}
               >
                 {m.role === "user" ? <FiUser size={14} /> : <FiCpu size={14} />}
               </div>
               <div
                 className={`px-4 py-3 rounded-2xl text-sm shadow-sm whitespace-pre-line leading-relaxed ${m.role === "user"
-                    ? "bg-blue-600 text-white rounded-tr-none"
-                    : "bg-white text-gray-800 rounded-tl-none border border-gray-100"
+                  ? "bg-blue-600 text-white rounded-tr-none"
+                  : "bg-white text-gray-800 rounded-tl-none border border-gray-100"
                   }`}
               >
                 {formatMessage(m.content)}

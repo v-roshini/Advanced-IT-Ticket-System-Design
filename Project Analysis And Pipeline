@@ -1,7 +1,7 @@
-# Linotec Ticket System: Project Analysis & Idea Pipeline
+# Lenok Ticket System: Project Analysis & Idea Pipeline
 
 ## 1. Project Overview & Current Coverage
-The **Linotec Ticket System** is a full-stack IT Service Management (ITSM) and Support Ticketing platform. It is designed to handle the entire lifecycle of customer support, from issue reporting to resolution, time tracking, and billing.
+The **Lenok Ticket System** is a full-stack IT Service Management (ITSM) and Support Ticketing platform. It is designed to handle the entire lifecycle of customer support, from issue reporting to resolution, time tracking, and billing.
 
 ### **Tech Stack**
 *   **Frontend**: React 19, Tailwind CSS, React Router, Axios

@@ -113,7 +113,7 @@ router.get("/backup", verifyToken, isAdmin, async (req, res) => {
     };
 
     res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Content-Disposition', 'attachment; filename=linotec_backup.json');
+    res.setHeader('Content-Disposition', 'attachment; filename=Lenok_backup.json');
     res.send(JSON.stringify(backupData, null, 2));
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -143,12 +143,12 @@ router.patch("/permissions/:id", verifyToken, isAdmin, async (req, res) => {
   try {
     const updated = await prisma.permission.update({
       where: { id: Number(req.params.id) },
-      data: { 
+      data: {
         is_enabled: Boolean(is_enabled),
         updated_by_id: req.user.id
       }
     });
-    
+
     // Log the change
     await prisma.systemLog.create({
       data: {

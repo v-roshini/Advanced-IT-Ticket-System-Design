@@ -20,7 +20,7 @@ async function sendRealSMS(userId, message) {
         if (!user || !user.phone) return;
 
         const response = await client.messages.create({
-            body: `Linotec: ${message}`,
+            body: `Lenok: ${message}`,
             from: process.env.TWILIO_PHONE_NUMBER,
             to: user.phone
         });

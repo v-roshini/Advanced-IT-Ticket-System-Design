@@ -78,9 +78,14 @@ async function processRenewalAlerts() {
         }
       }
 
-      // Alert Notification Logic (60, 30, 15, 7, 3, 1 days)
-      const alertDays = [60, 30, 15, 7, 3, 1];
-      if (alertDays.includes(diffDays)) {
+      // Alert Notification Logic
+      const alertDays = [60, 15, 3, 1];
+      let shouldNotify = alertDays.includes(diffDays);
+
+      if (diffDays === 30 && r.remind_one_month) shouldNotify = true;
+      if (diffDays === 7 && r.remind_one_week) shouldNotify = true;
+
+      if (shouldNotify) {
         const msg = `Asset '${r.asset_name}' expires in ${diffDays} days for customer ${r.customer?.name}.`;
         
         // 🔔 Alert Admin
@@ -111,9 +116,50 @@ async function processRenewalAlerts() {
       }
     }
 
+    // --- Monthly Summary Notification ---
+    await sendMonthlyRenewalSummary();
+
     console.log("🏁 Renewal Alert Engine Scan Complete.");
   } catch (err) {
     console.error("❌ Renewal Engine Error:", err);
+  }
+}
+
+/**
+ * Aggregates all renewals for the current month into a single summary notification for admins.
+ */
+async function sendMonthlyRenewalSummary() {
+  try {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+
+    const monthlyRenewals = await prisma.renewal.findMany({
+      where: {
+        expiry_date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    });
+
+    if (monthlyRenewals.length === 0) return;
+
+    const completed = monthlyRenewals.filter(r => r.status === "renewed").length;
+    const pending = monthlyRenewals.filter(r => r.status !== "renewed").length;
+
+    const summaryMsg = `This Month: ${monthlyRenewals.length} Total Renewals. ✅ ${completed} Completed, ⏳ ${pending} Pending.`;
+    
+    await notifyAdmins(
+      "renewal_summary",
+      "📊 Monthly Renewal Summary",
+      summaryMsg,
+      "/renewals"
+    );
+
+    console.log("📊 Monthly Renewal Summary Notification Sent.");
+  } catch (err) {
+    console.error("❌ Monthly Summary Error:", err);
   }
 }
 

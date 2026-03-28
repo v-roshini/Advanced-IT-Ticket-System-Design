@@ -52,4 +52,33 @@ router.patch("/read-all", verifyToken, async (req, res) => {
     }
 });
 
+// POST /notifications/send-test — creates & emits a real-time test notification (auth required)
+router.post("/send-test", verifyToken, async (req, res) => {
+    try {
+        const notif = await prisma.notification.create({
+            data: {
+                user_id: req.user.id,
+                type: "ticket_created",
+                title: "🧪 Real-time Test",
+                message: `Live test at ${new Date().toLocaleTimeString("en-IN")}. Socket.io is working! ✅`,
+                link: "/dashboard",
+                channel: "in_app",
+                is_read: false
+            }
+        });
+
+        // Emit via Socket.io to the logged-in user's room
+        if (global.io) {
+            global.io.to(`user_${req.user.id}`).emit("notification", notif);
+            console.log(`📤 Test notification emitted to user_${req.user.id}`);
+        }
+
+        res.json({ message: "Test notification sent!", notif });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Error sending test notification" });
+    }
+});
+
 module.exports = router;
+

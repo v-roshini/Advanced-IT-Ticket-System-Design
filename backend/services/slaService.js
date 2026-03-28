@@ -101,12 +101,12 @@ async function processSLAEngine() {
  * Setup CRON job: Runs every minute
  */
 function startSLACron() {
-  nodeCron.schedule("* * * * *", () => {
+  nodeCron.schedule("*/5 * * * *", () => {
     processSLAEngine();
   });
-  console.log("🕒 SLA Monitoring Engine scheduled every 1 minute.");
+  console.log("🕒 SLA Monitoring Engine scheduled every 5 minutes.");
   
-  // Run once at startup
+  // Run once at startup (disabled to allow DB connection to stabilize first)
   // processSLAEngine();
 }
 

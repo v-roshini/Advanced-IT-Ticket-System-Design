@@ -6,11 +6,11 @@ async function seedTestData() {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   const agents = [
-    { name: "Alex Rivera", email: "alex.agent@linotec.com", spec: "Network Security" },
-    { name: "Sarah Connor", email: "sarah.agent@linotec.com", spec: "Server Administration" },
-    { name: "Michael Chen", email: "michael.agent@linotec.com", spec: "Cloud Architecture" },
-    { name: "Priya Sharma", email: "priya.agent@linotec.com", spec: "Database Tuning" },
-    { name: "David Miller", email: "david.agent@linotec.com", spec: "VoIP & Telecom" }
+    { name: "Alex Rivera", email: "alex.agent@Lenok.com", spec: "Network Security" },
+    { name: "Sarah Connor", email: "sarah.agent@Lenok.com", spec: "Server Administration" },
+    { name: "Michael Chen", email: "michael.agent@Lenok.com", spec: "Cloud Architecture" },
+    { name: "Priya Sharma", email: "priya.agent@Lenok.com", spec: "Database Tuning" },
+    { name: "David Miller", email: "david.agent@Lenok.com", spec: "VoIP & Telecom" }
   ];
 
   const customers = [
@@ -22,7 +22,7 @@ async function seedTestData() {
   ];
 
   console.log("🚀 Starting Seeding Process...");
-  
+
   // Seed Admin
   await prisma.user.upsert({
     where: { email: "faf@gmail.com" },

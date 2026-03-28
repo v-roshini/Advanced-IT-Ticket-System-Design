@@ -454,7 +454,7 @@ function BillingPanel() {
 
               <div>
                 <label className="text-sm font-medium text-gray-700 mb-1 block">Month *</label>
-                <input type="month" required max={new Date().toISOString().slice(0,7)}
+                <input type="month" required max={new Date().toISOString().slice(0, 7)}
                   className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
                   value={form.month}
                   onChange={(e) => setForm({ ...form, month: e.target.value })} />
@@ -533,8 +533,8 @@ function UserManagement() {
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
       <div className="p-6 border-b flex justify-between items-center">
-         <h3 className="font-bold text-blue-900">User & Agent Directory</h3>
-         <span className="text-xs text-gray-500 font-medium">Manage IDs, Roles & Access</span>
+        <h3 className="font-bold text-blue-900">User & Agent Directory</h3>
+        <span className="text-xs text-gray-500 font-medium">Manage IDs, Roles & Access</span>
       </div>
       <table className="w-full text-sm text-left">
         <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider">
@@ -554,14 +554,14 @@ function UserManagement() {
                 <span className="text-xs text-gray-400">{u.email}</span>
               </td>
               <td className="px-6 py-4">
-                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : u.role === 'agent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                   {u.role}
-                 </span>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${u.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : u.role === 'agent' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                  {u.role}
+                </span>
               </td>
               <td className="px-6 py-4 text-gray-500">{u.specialization || "—"}</td>
               <td className="px-6 py-4">
-                 <span className={`w-3 h-3 rounded-full inline-block mr-2 ${u.is_active ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                 {u.is_active ? 'Active' : 'Inactive'}
+                <span className={`w-3 h-3 rounded-full inline-block mr-2 ${u.is_active ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                {u.is_active ? 'Active' : 'Inactive'}
               </td>
               <td className="px-6 py-4">
                 <button onClick={() => handleToggleStatus(u.id, u.is_active)} className={`text-xs font-bold ${u.is_active ? 'text-red-600' : 'text-green-600'} hover:underline`}>
@@ -598,7 +598,7 @@ function SystemLogs() {
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
       <div className="p-6 border-b">
-         <h3 className="font-bold text-blue-900">Audit Trail & System Logs</h3>
+        <h3 className="font-bold text-blue-900">Audit Trail & System Logs</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left">
@@ -633,8 +633,8 @@ function SystemLogs() {
 // ─────────────────────────────────────────
 function Settings() {
   const [form, setForm] = useState({
-    company_name: "Linotec IT Solutions",
-    email: "support@linotec.com",
+    company_name: "Lenok IT Solutions",
+    email: "support@Lenok.com",
     phone: "+91 98765 43210",
     hourly_rate: "500",
   });
@@ -648,7 +648,7 @@ function Settings() {
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', 'linotec_backup.json');
+      link.setAttribute('download', 'Lenok_backup.json');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -681,21 +681,21 @@ function Settings() {
       </div>
 
       <div className="bg-white rounded-xl shadow p-6">
-         <h3 className="font-semibold text-blue-900 mb-5">Security & Maintenance</h3>
-         <div className="flex flex-col gap-4">
-            <div className="p-4 border border-dashed border-gray-200 rounded-xl">
-               <h4 className="text-sm font-bold text-gray-800 mb-1">Full Data Export</h4>
-               <p className="text-xs text-gray-400 mb-3">Download a raw JSON dump of all tickets, customers, and contracts.</p>
-               <button onClick={handleBackup} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 transition">
-                  Generate Cloud Backup (.JSON)
-               </button>
-            </div>
-            <div className="p-4 border border-dashed border-gray-200 rounded-xl">
-               <h4 className="text-sm font-bold text-gray-800 mb-1">SLA Configuration</h4>
-               <p className="text-xs text-gray-400 mb-3">Configure global resolution timers for Priority tiers.</p>
-               <button className="text-blue-600 text-xs font-bold hover:underline">Edit SLA Tiers</button>
-            </div>
-         </div>
+        <h3 className="font-semibold text-blue-900 mb-5">Security & Maintenance</h3>
+        <div className="flex flex-col gap-4">
+          <div className="p-4 border border-dashed border-gray-200 rounded-xl">
+            <h4 className="text-sm font-bold text-gray-800 mb-1">Full Data Export</h4>
+            <p className="text-xs text-gray-400 mb-3">Download a raw JSON dump of all tickets, customers, and contracts.</p>
+            <button onClick={handleBackup} className="bg-gray-100 text-gray-600 px-4 py-2 rounded-lg text-xs font-bold hover:bg-gray-200 transition">
+              Generate Cloud Backup (.JSON)
+            </button>
+          </div>
+          <div className="p-4 border border-dashed border-gray-200 rounded-xl">
+            <h4 className="text-sm font-bold text-gray-800 mb-1">SLA Configuration</h4>
+            <p className="text-xs text-gray-400 mb-3">Configure global resolution timers for Priority tiers.</p>
+            <button className="text-blue-600 text-xs font-bold hover:underline">Edit SLA Tiers</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -756,7 +756,7 @@ function AdminPermissions() {
         <p className="font-bold text-gray-800 text-sm tracking-tight">{p.permission_key.replace(/_/g, " ").toUpperCase()}</p>
         <p className="text-[10px] text-gray-400 font-medium">Last updated by {p.updated_by?.full_name || "System"}</p>
       </div>
-      <button 
+      <button
         onClick={() => togglePermission(p.id, p.is_enabled)}
         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${p.is_enabled ? 'bg-blue-600' : 'bg-gray-200'}`}
       >
@@ -781,8 +781,8 @@ function AdminPermissions() {
         {/* Agent Permissions */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="bg-blue-900 text-white p-5">
-             <h3 className="text-lg font-black uppercase tracking-widest text-center">Support Team Access</h3>
-             <p className="text-[10px] text-blue-200 text-center uppercase font-bold mt-1">Control Agent Capabilities</p>
+            <h3 className="text-lg font-black uppercase tracking-widest text-center">Support Team Access</h3>
+            <p className="text-[10px] text-blue-200 text-center uppercase font-bold mt-1">Control Agent Capabilities</p>
           </div>
           <div className="divide-y divide-gray-50 min-h-[100px]">
             {loading ? (
@@ -798,17 +798,17 @@ function AdminPermissions() {
         {/* Client Permissions */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="bg-blue-600 text-white p-5">
-             <h3 className="text-lg font-black uppercase tracking-widest text-center">Customer Portal Access</h3>
-             <p className="text-[10px] text-blue-100 text-center uppercase font-bold mt-1">Control Portal Visibility</p>
+            <h3 className="text-lg font-black uppercase tracking-widest text-center">Customer Portal Access</h3>
+            <p className="text-[10px] text-blue-100 text-center uppercase font-bold mt-1">Control Portal Visibility</p>
           </div>
           <div className="divide-y divide-gray-50 min-h-[100px]">
-             {loading ? (
-               <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p>
-             ) : clientPerms.length > 0 ? (
-               clientPerms.map(p => <PermissionRow key={p.id} p={p} />)
-             ) : (
-               <p className="p-10 text-center text-gray-400 text-sm">No portal permissions found.</p>
-             )}
+            {loading ? (
+              <p className="p-10 text-center text-blue-600 font-bold">Scanning...</p>
+            ) : clientPerms.length > 0 ? (
+              clientPerms.map(p => <PermissionRow key={p.id} p={p} />)
+            ) : (
+              <p className="p-10 text-center text-gray-400 text-sm">No portal permissions found.</p>
+            )}
           </div>
         </div>
       </div>
@@ -844,7 +844,7 @@ export default function AdminPanel() {
           </span>
         </div>
         <div className="hidden md:block">
-           <p className="text-white text-xs font-bold bg-green-500/50 px-3 py-1 rounded-full border border-green-400/50">SYSTEM ONLINE</p>
+          <p className="text-white text-xs font-bold bg-green-500/50 px-3 py-1 rounded-full border border-green-400/50">SYSTEM ONLINE</p>
         </div>
       </div>
 

@@ -15,7 +15,9 @@ async function seedPermissions() {
     'can_view_amc_contracts',
     'can_generate_invoice',
     'can_escalate_ticket',
-    'can_view_reports'
+    'can_view_reports',
+    'can_add_comment',
+    'can_add_internal_note'
   ];
 
   const customerPermissions = [

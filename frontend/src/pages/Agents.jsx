@@ -42,9 +42,9 @@ export default function Agents() {
 
   const openEditModal = (a) => {
     setEditId(a.id);
-    setForm({ 
-      full_name: a.full_name, email: a.email, phone: a.phone || "", role: a.role, 
-      specialization: a.specialization || "Level 1 Support", availability: a.availability || "Online" 
+    setForm({
+      full_name: a.full_name, email: a.email, phone: a.phone || "", role: a.role,
+      specialization: a.specialization || "Level 1 Support", availability: a.availability || "Online"
     });
     setShowModal(true);
   };
@@ -86,13 +86,13 @@ export default function Agents() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-blue-900">Agents</h2>
+          <h2 className="text-2xl font-bold text-blue-900">Support Team</h2>
           <p className="text-gray-400 text-sm">{filtered.length} agents found</p>
         </div>
         <button
           onClick={openAddModal}
           className="flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition text-sm font-medium">
-          <FiPlus /> Invite Agent
+          <FiPlus /> Add Agent
         </button>
       </div>
 
@@ -143,12 +143,11 @@ export default function Agents() {
                 </div>
                 <div className="bg-gray-50 rounded p-2 text-center text-xs">
                   <span className="block text-gray-400 font-medium mb-1">Status</span>
-                  <span className={`inline-block px-2 py-0.5 rounded-full font-bold uppercase mt-1 ${
-                    a.availability === 'Online' ? 'bg-green-100 text-green-700' :
+                  <span className={`inline-block px-2 py-0.5 rounded-full font-bold uppercase mt-1 ${a.availability === 'Online' ? 'bg-green-100 text-green-700' :
                     a.availability === 'Busy' ? 'bg-red-100 text-red-700' :
-                    a.availability === 'On Leave' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-gray-200 text-gray-700'
-                  }`}>
+                      a.availability === 'On Leave' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-200 text-gray-700'
+                    }`}>
                     {a.availability || "Offline"}
                   </span>
                 </div>
@@ -156,7 +155,7 @@ export default function Agents() {
 
               <div className="space-y-2 text-sm">
                 <div className="flex items-center gap-2 text-gray-600">
-                  <FiBriefcase className="text-gray-400" /> 
+                  <FiBriefcase className="text-gray-400" />
                   <span className="font-medium text-gray-700">{a.specialization}</span>
                 </div>
               </div>
@@ -173,20 +172,20 @@ export default function Agents() {
               <h3 className="text-xl font-bold text-blue-900">
                 {editId ? "Edit Agent" : "Invite Agent"}
               </h3>
-              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><FiX size={20}/></button>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><FiX size={20} /></button>
             </div>
-            
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Full Name *</label>
                 <input type="text" required className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
               </div>
-              
+
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Email Address *</label>
                 <input type="email" required className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} disabled={!!editId} />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Specialization</label>
@@ -212,7 +211,7 @@ export default function Agents() {
 
               {!editId && (
                 <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded mt-2 border border-blue-100 flex items-start gap-2">
-                  <span>ℹ️</span> 
+                  <span>ℹ️</span>
                   A temporary password will be auto-generated and securely provided to you upon inviting the agent.
                 </div>
               )}

@@ -20,12 +20,12 @@ async function sendRealEmail(userId, title, message, link) {
         });
 
         const mailOptions = {
-            from: `"Linotec Support" <${process.env.EMAIL_FROM || "no-reply@linotec.com"}>`,
+            from: `"Lenok Support" <${process.env.EMAIL_FROM || "no-reply@Lenok.com"}>`,
             to: user.email,
             subject: title,
             html: `
                 <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px;">
-                    <h2 style="color: #007bff;">Linotec Notification</h2>
+                    <h2 style="color: #007bff;">Lenok Notification</h2>
                     <p>Hello <b>${user.full_name}</b>,</p>
                     <p>${message}</p>
                     <div style="margin: 20px 0;">

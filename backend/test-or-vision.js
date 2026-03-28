@@ -41,7 +41,7 @@ async function test() {
                 {
                     headers: {
                         Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                        "X-Title": "Linotec Ticket System",
+                        "X-Title": "Lenok Ticket System",
                         "Content-Type": "application/json",
                     },
                 }

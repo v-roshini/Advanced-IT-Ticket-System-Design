@@ -54,7 +54,7 @@ export default function Login() {
                 <div className="relative z-10 w-full max-w-5xl animate-in fade-in slide-in-from-bottom-5 duration-700">
                     <div className="text-center mb-12">
                         <div className="inline-block p-3 bg-white/10 backdrop-blur-xl rounded-2xl mb-4 border border-white/20">
-                            <h2 className="text-white font-black text-2xl tracking-widest italic uppercase">Linotec IT</h2>
+                            <h2 className="text-white font-black text-2xl tracking-widest italic uppercase">Lenok IT</h2>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-black text-white drop-shadow-2xl tracking-tight mb-2">Select Your Portal</h1>
                         <p className="text-blue-100/70 font-medium">Choose your workspace to continue to the system</p>
@@ -67,13 +67,13 @@ export default function Login() {
                                 className="group relative bg-white/10 backdrop-blur-xl border border-white/20 p-8 rounded-3xl cursor-pointer hover:bg-white transition-all duration-500 transform hover:-translate-y-3 hover:shadow-2xl overflow-hidden shadow-xl"
                             >
                                 <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${role.color} opacity-20 -mr-16 -mt-16 rounded-full blur-3xl transition-opacity group-hover:opacity-60`}></div>
-                                
+
                                 <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${role.color} flex items-center justify-center text-white text-3xl mb-6 shadow-xl group-hover:scale-110 transition-transform`}>
                                     {role.icon}
                                 </div>
                                 <h3 className="text-white group-hover:text-blue-900 text-2xl font-black mb-2 transition-colors uppercase italic">{role.label}</h3>
                                 <p className="text-blue-100 group-hover:text-gray-500 font-medium text-sm transition-colors mb-6">{role.desc}</p>
-                                
+
                                 <div className="flex items-center gap-2 text-white group-hover:text-blue-600 font-black text-[10px] uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-all duration-500 translate-x-[-10px] group-hover:translate-x-0">
                                     Login with Secure ID <FiArrowLeft className="rotate-180" />
                                 </div>
@@ -108,7 +108,7 @@ export default function Login() {
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block ml-1 text-left">Internal Identity</label>
                                 <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 focus-within:bg-white focus-within:border-blue-500 focus-within:ring-4 focus-within:ring-blue-100/50 transition-all duration-300 shadow-inner">
                                     <FiMail className="text-gray-400 text-lg flex-shrink-0 group-focus-within:text-blue-600 transition-colors" />
-                                    <input type="email" placeholder="user@linotec.com" required
+                                    <input type="email" placeholder="user@Lenok.com" required
                                         className="outline-none text-sm w-full text-gray-800 bg-transparent font-semibold placeholder:text-gray-300"
                                         value={form.email}
                                         onChange={(e) => setForm({ ...form, email: e.target.value })} />

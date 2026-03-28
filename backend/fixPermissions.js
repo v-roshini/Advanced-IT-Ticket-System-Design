@@ -4,10 +4,13 @@ const prisma = new PrismaClient();
 async function fix() {
   const perms = [
     { role: "agent", key: "can_view_tickets" },
+    { role: "agent", key: "can_add_comment" },
+    { role: "agent", key: "can_add_internal_note" },
     { role: "agent", key: "can_view_renewals" },
     { role: "agent", key: "can_view_billing" },
     { role: "agent", key: "can_view_amc_contracts" },
     { role: "client", key: "can_view_own_tickets" },
+    { role: "client", key: "can_add_comment" },
     { role: "client", key: "can_view_renewals" },
     { role: "client", key: "can_view_billing" }
   ];

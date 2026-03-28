@@ -8,7 +8,7 @@ async function seedRenewals() {
   const renewalTemplates = [
     {
       category: "domain",
-      asset_name: "linotec.com",
+      asset_name: "Lenok.com",
       vendor: "GoDaddy",
       expiry_date: new Date("2025-12-31"),
       cost: 1200,
@@ -57,7 +57,7 @@ async function seedRenewals() {
     {
       category: "amc",
       asset_name: "Annual Maintenance Contract",
-      vendor: "Linotec IT Solutions",
+      vendor: "Lenok IT Solutions",
       expiry_date: new Date("2026-03-31"),
       cost: 24000,
       auto_renew: true

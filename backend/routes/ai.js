@@ -25,7 +25,7 @@ async function callOpenRouter(messages) {
             {
                 headers: {
                     Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                    "X-Title": "Linotec Ticket System",
+                    "X-Title": "Lenok Ticket System",
                     "Content-Type": "application/json",
                 },
             }
@@ -147,7 +147,7 @@ router.post("/chat", verifyToken, async (req, res) => {
     }
 
     try {
-        const systemPrompt = `You are an expert IT Support Agent for Linotec, a technology company.
+        const systemPrompt = `You are an expert IT Support Agent for Lenok, a technology company.
 Your primary goal is ZERO-TOUCH RESOLUTION — solve the user's issue yourself before any human intervention.
 
 Guidelines:

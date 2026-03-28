@@ -23,6 +23,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerTickets from "./pages/CustomerTickets";
 import CustomerBilling from "./pages/CustomerBilling";
 import CustomerRenewals from "./pages/CustomerRenewals";
+import ToastContainer from "./components/ToastContainer";
 import axios from "axios";
 
 const API = axios.create({
@@ -70,6 +71,8 @@ const Layout = ({ children }) => (
 function App() {
   return (
     <Router>
+      {/* Global popup toast notifications — always active */}
+      <ToastContainer />
       <Routes>
         {/* Public routes — redirect to /dashboard if already logged in */}
         <Route path="/" element={<PublicRoute><Login /></PublicRoute>} />

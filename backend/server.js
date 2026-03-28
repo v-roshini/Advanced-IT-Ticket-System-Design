@@ -26,7 +26,7 @@ app.use("/api/reports", require("./routes/reports"));
 app.use("/uploads", express.static("uploads"));
 
 app.get("/", (req, res) => {
-    res.json({ message: "✅ Linotec API is running!" });
+    res.json({ message: "✅ Lenok API is running!" });
 });
 
 process.on("uncaughtException", (err) => {
@@ -69,12 +69,21 @@ global.io = io;
 server.listen(PORT, async () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     const prisma = require("./config/prisma");
-    try {
-        await prisma.$connect();
-        console.log("✅ Database Connected Successfully (Prisma)!");
-    } catch (err) {
-        console.error("❌ Database Connection Failed:", err.message);
+
+    // Retry up to 3 times — Neon cold starts can take a few seconds
+    let connected = false;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            await prisma.$connect();
+            console.log("✅ Database Connected Successfully (Prisma)!");
+            connected = true;
+            break;
+        } catch (err) {
+            console.warn(`⚠️ DB connect attempt ${attempt}/3 failed. Retrying in 5s...`);
+            if (attempt < 3) await new Promise(r => setTimeout(r, 5000));
+        }
     }
+    if (!connected) console.error("❌ Database could not connect after 3 attempts. Check Neon dashboard.");
 
     // --- Renewal Manager Module ---
     const { startRenewalCron } = require("./services/renewalService");

@@ -52,6 +52,8 @@ export default function Renewals() {
     cost: "",
     currency: "INR",
     auto_renew: false,
+    remind_one_week: true,
+    remind_one_month: true,
     notes: "",
     assigned_agent_id: "",
   });
@@ -87,7 +89,7 @@ export default function Renewals() {
     e.preventDefault();
     const formattedForm = { ...form };
     if (!formattedForm.purchase_date) delete formattedForm.purchase_date;
-    
+
     try {
       if (editId) {
         await axios.put(`${BASE}/renewals/${editId}`, formattedForm, { headers });
@@ -116,6 +118,8 @@ export default function Renewals() {
       cost: "",
       currency: "INR",
       auto_renew: false,
+      remind_one_week: true,
+      remind_one_month: true,
       notes: "",
       assigned_agent_id: "",
     });
@@ -124,7 +128,7 @@ export default function Renewals() {
   const handleRenew = async (r) => {
     const curExp = new Date(r.expiry_date);
     const SUGGESTED_EXP = new Date(curExp.setFullYear(curExp.getFullYear() + 1)).toISOString().split('T')[0];
-    
+
     const newDate = prompt("Enter new expiry date (YYYY-MM-DD):", SUGGESTED_EXP);
     if (!newDate) return;
     try {
@@ -200,7 +204,7 @@ export default function Renewals() {
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input type="text" placeholder="Search domain, hosting, customer..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-lg focus:ring-2 focus:ring-blue-100 outline-none text-sm transition" />
         </div>
-        
+
         <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="bg-white border rounded-lg px-4 py-2 text-sm outline-none cursor-pointer hover:bg-gray-50 transition">
           <option value="All">All Categories</option>
           {Object.keys(categoryIcons).map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
@@ -235,10 +239,10 @@ export default function Renewals() {
                 <tr><td colSpan="7" className="text-center py-16 text-blue-600 font-black animate-pulse">Scanning records...</td></tr>
               ) : filtered.length === 0 ? (
                 <tr><td colSpan="7" className="text-center py-20 text-gray-400 italic bg-gray-50/50">
-                   <div className="flex flex-col items-center gap-2 opacity-50">
-                     <FiList size={40} />
-                     <span>No matching renewal records found.</span>
-                   </div>
+                  <div className="flex flex-col items-center gap-2 opacity-50">
+                    <FiList size={40} />
+                    <span>No matching renewal records found.</span>
+                  </div>
                 </td></tr>
               ) : filtered.map((r) => {
                 const isOverdue = new Date(r.expiry_date) < new Date();
@@ -252,8 +256,8 @@ export default function Renewals() {
                     </td>
                     <td className="px-6 py-4 font-bold text-gray-800">{r.asset_name}</td>
                     <td className="px-6 py-4">
-                       <p className="font-bold text-blue-700">{r.customer?.name}</p>
-                       <p className="text-[10px] text-gray-400 font-medium truncate w-32">{r.customer?.company}</p>
+                      <p className="font-bold text-blue-700">{r.customer?.name}</p>
+                      <p className="text-[10px] text-gray-400 font-medium truncate w-32">{r.customer?.company}</p>
                     </td>
                     <td className="px-6 py-4">
                       <p className={`font-mono text-xs font-black ${isOverdue ? 'text-red-600' : 'text-gray-700'}`}>
@@ -263,9 +267,15 @@ export default function Renewals() {
                     </td>
                     <td className="px-6 py-4 font-black text-gray-900 italic">₹{r.cost?.toLocaleString() || 0}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-tight ${statusColors[r.status]}`}>
-                        {r.status.replace("_", " ")}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-tight ${statusColors[r.status]}`}>
+                          {r.status.replace("_", " ")}
+                        </span>
+                        <div className="flex gap-1.5 mt-1">
+                          {r.remind_one_month && <span title="1 Month Reminder Active" className="w-2 h-2 rounded-full bg-indigo-500 shadow-sm shadow-indigo-100"></span>}
+                          {r.remind_one_week && <span title="1 Week Reminder Active" className="w-2 h-2 rounded-full bg-orange-500 shadow-sm shadow-orange-100"></span>}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex gap-2 justify-end">
@@ -286,25 +296,25 @@ export default function Renewals() {
           <h4 className="text-gray-800 font-bold text-lg mb-2">Month View Calendar</h4>
           <p className="text-sm max-w-sm mx-auto mb-8">Visualization of renewal deadlines across the current month.</p>
           <div className="grid grid-cols-7 gap-3 mt-8 max-w-2xl mx-auto p-4 bg-gray-50 rounded-2xl border">
-             {['S','M','T','W','T','F','S'].map((d, i) => (
-               <div key={i} className="text-[10px] font-black text-gray-300 py-1">{d}</div>
-             ))}
-             {[...Array(30).keys()].map(i => {
-               const dayNum = i + 1;
-               const hasRenewal = renewals.some(r => new Date(r.expiry_date).getDate() === dayNum && new Date(r.expiry_date).getMonth() === new Date().getMonth());
-               return (
-                 <div key={i} className={`aspect-square rounded-xl border flex flex-col items-center justify-center text-xs relative transition hover:shadow-inner ${hasRenewal ? 'bg-white border-blue-200 text-blue-700 font-black ring-2 ring-blue-50' : 'bg-white text-gray-400'}`}>
-                    {dayNum}
-                    {hasRenewal && (
-                      <span className="absolute bottom-1.5 w-1.5 h-1.5 bg-blue-600 rounded-full shadow-sm animate-pulse"></span>
-                    )}
-                 </div>
-               );
-             })}
+            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+              <div key={i} className="text-[10px] font-black text-gray-300 py-1">{d}</div>
+            ))}
+            {[...Array(30).keys()].map(i => {
+              const dayNum = i + 1;
+              const hasRenewal = renewals.some(r => new Date(r.expiry_date).getDate() === dayNum && new Date(r.expiry_date).getMonth() === new Date().getMonth());
+              return (
+                <div key={i} className={`aspect-square rounded-xl border flex flex-col items-center justify-center text-xs relative transition hover:shadow-inner ${hasRenewal ? 'bg-white border-blue-200 text-blue-700 font-black ring-2 ring-blue-50' : 'bg-white text-gray-400'}`}>
+                  {dayNum}
+                  {hasRenewal && (
+                    <span className="absolute bottom-1.5 w-1.5 h-1.5 bg-blue-600 rounded-full shadow-sm animate-pulse"></span>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="mt-8 flex justify-center gap-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-             <div className="flex items-center gap-2"><span className="w-2.4 h-2 rounded-full bg-blue-600"></span> Expiry Deadlines</div>
-             <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-200"></span> No Deadlines</div>
+            <div className="flex items-center gap-2"><span className="w-2.4 h-2 rounded-full bg-blue-600"></span> Expiry Deadlines</div>
+            <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-gray-200"></span> No Deadlines</div>
           </div>
         </div>
       )}
@@ -314,69 +324,85 @@ export default function Renewals() {
         <div className="fixed inset-0 bg-blue-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
           <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-2xl overflow-y-auto max-h-[90vh] border border-white/20">
             <div className="flex justify-between items-center mb-8">
-               <div>
-                  <h3 className="text-2xl font-black text-blue-900">{editId ? "Update Record" : "New Digital Asset"}</h3>
-                  <p className="text-gray-400 text-xs font-medium">Capture details for proactive renewal tracking</p>
-               </div>
-               <button onClick={() => setShowModal(false)} className="bg-gray-50 p-2 rounded-full text-gray-400 hover:text-red-500 transition"><FiTrash2 size={20}/></button>
+              <div>
+                <h3 className="text-2xl font-black text-blue-900">{editId ? "Update Record" : "New Digital Asset"}</h3>
+                <p className="text-gray-400 text-xs font-medium">Capture details for proactive renewal tracking</p>
+              </div>
+              <button onClick={() => setShowModal(false)} className="bg-gray-50 p-2 rounded-full text-gray-400 hover:text-red-500 transition"><FiTrash2 size={20} /></button>
             </div>
 
             <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Customer *</label>
-                <select required className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition" value={form.customer_id} onChange={e => setForm({...form, customer_id: e.target.value})}>
+                <select required className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition" value={form.customer_id} onChange={e => setForm({ ...form, customer_id: e.target.value })}>
                   <option value="">Select Customer</option>
                   {customers.map(c => <option key={c.id} value={c.id}>{c.name} - {c.company}</option>)}
                 </select>
               </div>
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Category *</label>
-                <select required className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition" value={form.category} onChange={e => setForm({...form, category: e.target.value})}>
+                <select required className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                   {Object.keys(categoryIcons).map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Asset Name (Domain/Software) *</label>
-                <input required type="text" placeholder="e.g. linotec.solutions" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition font-bold" value={form.asset_name} onChange={e => setForm({...form, asset_name: e.target.value})} />
+                <input required type="text" placeholder="e.g. Lenok.solutions" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition font-bold" value={form.asset_name} onChange={e => setForm({ ...form, asset_name: e.target.value })} />
               </div>
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Vendor / Provider</label>
-                <input type="text" placeholder="GoDaddy, Google Cloud, AWS" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.vendor} onChange={e => setForm({...form, vendor: e.target.value})} />
+                <input type="text" placeholder="GoDaddy, Google Cloud, AWS" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.vendor} onChange={e => setForm({ ...form, vendor: e.target.value })} />
               </div>
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Annual Market Cost (₹)</label>
-                <input type="number" placeholder="599.00" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.cost} onChange={e => setForm({...form, cost: e.target.value})} />
+                <input type="number" placeholder="599.00" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} />
               </div>
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Renewal / Purchase Date</label>
-                <input type="date" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.purchase_date} onChange={e => setForm({...form, purchase_date: e.target.value})} />
+                <input type="date" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.purchase_date} onChange={e => setForm({ ...form, purchase_date: e.target.value })} />
               </div>
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Expiry Date *</label>
-                <input required type="date" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-100 transition" value={form.expiry_date} onChange={e => setForm({...form, expiry_date: e.target.value})} />
+                <input required type="date" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-orange-100 transition" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} />
               </div>
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Assigned Account Manager</label>
-                <select className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.assigned_agent_id} onChange={e => setForm({...form, assigned_agent_id: e.target.value})}>
-                   <option value="">No Agent Assigned</option>
-                   {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                <select className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.assigned_agent_id} onChange={e => setForm({ ...form, assigned_agent_id: e.target.value })}>
+                  <option value="">No Agent Assigned</option>
+                  {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
                 </select>
               </div>
               <div className="col-span-1 flex items-center gap-3 mt-4">
-                 <div className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" id="auto_renew" className="sr-only peer" checked={form.auto_renew} onChange={e => setForm({...form, auto_renew: e.target.checked})} />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                 </div>
-                 <label htmlFor="auto_renew" className="text-xs font-bold text-gray-600">Auto-Renewal Mode</label>
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="auto_renew" className="sr-only peer" checked={form.auto_renew} onChange={e => setForm({ ...form, auto_renew: e.target.checked })} />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </div>
+                <label htmlFor="auto_renew" className="text-xs font-bold text-gray-600">Auto-Renewal Mode</label>
+              </div>
+
+              <div className="col-span-1 flex items-center gap-3 mt-4">
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="remind_one_month" className="sr-only peer" checked={form.remind_one_month} onChange={e => setForm({ ...form, remind_one_month: e.target.checked })} />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </div>
+                <label htmlFor="remind_one_month" className="text-xs font-bold text-gray-600">Alert 1 Month Before</label>
+              </div>
+
+              <div className="col-span-1 flex items-center gap-3 mt-2">
+                <div className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="remind_one_week" className="sr-only peer" checked={form.remind_one_week} onChange={e => setForm({ ...form, remind_one_week: e.target.checked })} />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+                </div>
+                <label htmlFor="remind_one_week" className="text-xs font-bold text-gray-600">Alert 1 Week Before</label>
               </div>
               <div className="col-span-2">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Asset Documentation / Notes</label>
-                <textarea rows="3" placeholder="Server IPs, SSH keys, Registrar login refs..." className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none resize-none" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})}></textarea>
+                <textarea rows="3" placeholder="Server IPs, SSH keys, Registrar login refs..." className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none resize-none" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}></textarea>
               </div>
 
               <div className="col-span-2 flex gap-4 mt-6">
-                 <button type="submit" className="flex-1 bg-blue-700 text-white font-black py-4 rounded-2xl hover:bg-blue-900 transition shadow-lg shadow-blue-200 uppercase tracking-widest text-xs">Save Asset Data</button>
-                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-500 font-bold py-4 rounded-2xl hover:bg-gray-200 transition uppercase tracking-widest text-xs">Cancel</button>
+                <button type="submit" className="flex-1 bg-blue-700 text-white font-black py-4 rounded-2xl hover:bg-blue-900 transition shadow-lg shadow-blue-200 uppercase tracking-widest text-xs">Save Asset Data</button>
+                <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-500 font-bold py-4 rounded-2xl hover:bg-gray-200 transition uppercase tracking-widest text-xs">Cancel</button>
               </div>
             </form>
           </div>
