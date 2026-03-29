@@ -79,7 +79,7 @@ server.listen(PORT, async () => {
             connected = true;
             break;
         } catch (err) {
-            console.warn(`⚠️ DB connect attempt ${attempt}/3 failed. Retrying in 5s...`);
+            console.warn(`⚠️ DB connect attempt ${attempt}/3 failed: ${err.message} Retrying in 5s...`);
             if (attempt < 3) await new Promise(r => setTimeout(r, 5000));
         }
     }

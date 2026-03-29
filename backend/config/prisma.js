@@ -5,7 +5,6 @@ const { PrismaClient } = require("@prisma/client");
 // on hot reloads or multiple requires across the app
 if (!global._prisma) {
     global._prisma = new PrismaClient({
-        log: ["error"],
         errorFormat: "minimal",
     });
 }

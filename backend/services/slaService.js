@@ -93,21 +93,23 @@ async function processSLAEngine() {
 
     console.log("🏁 SLA Engine Scan Complete.");
   } catch (err) {
-    console.error("❌ SLA Engine Error:", err);
+    if (err.code === 'P1001' || err.code === 'P1017') {
+      console.warn("⚠️ SLA Engine: Database is sleeping or connection reset by Neon. Scan skipped until next cycle.");
+    } else {
+      console.error("❌ SLA Engine Error:", err.message || err);
+    }
   }
 }
 
-/**
- * Setup CRON job: Runs every minute
- */
 function startSLACron() {
-  nodeCron.schedule("*/5 * * * *", () => {
+  setInterval(() => {
     processSLAEngine();
-  });
+  }, 5 * 60 * 1000); // 5 minutes
+
   console.log("🕒 SLA Monitoring Engine scheduled every 5 minutes.");
   
   // Run once at startup (disabled to allow DB connection to stabilize first)
-  // processSLAEngine();
+  // setTimeout(processSLAEngine, 10000);
 }
 
 module.exports = {
