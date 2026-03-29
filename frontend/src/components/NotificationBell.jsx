@@ -54,7 +54,6 @@ export default function NotificationBell() {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount]     = useState(0);
     const [isOpen, setIsOpen]               = useState(false);
-    const [toasts, setToasts]               = useState([]);
     const [filter, setFilter]               = useState("all"); // "all" | "unread"
     const [isConnected, setIsConnected]     = useState(false);
     const [isLoading, setIsLoading]         = useState(false);
@@ -189,10 +188,6 @@ export default function NotificationBell() {
         if (notif.link) navigate(notif.link);
     };
 
-    // ── Dismiss a toast ────────────────────────
-    const dismissToast = (toastId) => {
-        setToasts(prev => prev.filter(t => t.toastId !== toastId));
-    };
 
     // ── Filtered notifications ──────────────────
     const filtered = filter === "unread"
@@ -201,14 +196,6 @@ export default function NotificationBell() {
 
     return (
         <>
-            {/* ── Floating Toast Stack ─────────────────────── */}
-            <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 pointer-events-none">
-                {toasts.map(t => (
-                    <div key={t.toastId} className="pointer-events-auto">
-                        <Toast notif={t} onDismiss={() => dismissToast(t.toastId)} />
-                    </div>
-                ))}
-            </div>
 
             {/* ── Bell Button ──────────────────────────────── */}
             <div className="relative" ref={dropdownRef}>
@@ -356,10 +343,6 @@ export default function NotificationBell() {
 
             {/* ── Inline animation styles ──────────────── */}
             <style>{`
-                @keyframes slideInRight {
-                    from { transform: translateX(110%); opacity: 0; }
-                    to   { transform: translateX(0);    opacity: 1; }
-                }
                 @keyframes dropIn {
                     from { transform: translateY(-8px) scale(0.97); opacity: 0; }
                     to   { transform: translateY(0)    scale(1);    opacity: 1; }
