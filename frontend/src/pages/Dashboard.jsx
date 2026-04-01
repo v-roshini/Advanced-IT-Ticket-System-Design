@@ -404,7 +404,7 @@ export default function Dashboard() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center justify-between">
               <div>
                 <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-1">Monthly Revenue</p>
-                <p className="text-3xl font-bold text-green-600">₹{monthlyRevenue.toLocaleString()}</p>
+                <p className="text-3xl font-bold text-green-600">AED {monthlyRevenue.toLocaleString()}</p>
                 <p className="text-xs text-gray-400 mt-1">Billed this month ({currentMonthStr})</p>
               </div>
               <div className="w-14 h-14 bg-green-50 rounded-xl flex items-center justify-center text-green-500">

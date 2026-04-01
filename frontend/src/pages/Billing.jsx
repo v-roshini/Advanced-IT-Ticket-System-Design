@@ -184,7 +184,7 @@ export default function Billing() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <div className="bg-white rounded-xl shadow p-5 border-l-4 border-green-500">
            <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Current Month Revenue</h3>
-           <p className="text-2xl font-black text-gray-800">₹{currentMonthRevenue.toFixed(2)}</p>
+           <p className="text-2xl font-black text-gray-800">AED {currentMonthRevenue.toFixed(2)}</p>
         </div>
         <div className="bg-white rounded-xl shadow p-5 border-l-4 border-orange-400">
            <h3 className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Pending Invoices</h3>
@@ -228,8 +228,8 @@ export default function Billing() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{b.month}</td>
                   <td className="px-4 py-3 text-gray-600">{b.hours_used} hrs</td>
-                  <td className="px-4 py-3 text-gray-600">₹{b.hourly_rate}</td>
-                  <td className="px-4 py-3 font-bold text-green-600">₹{b.total_amount}</td>
+                  <td className="px-4 py-3 text-gray-600">AED {b.hourly_rate}</td>
+                  <td className="px-4 py-3 font-bold text-green-600">AED {b.total_amount}</td>
                   <td className="px-4 py-3">
                     {b.invoices?.length > 0 ? (
                       <div className="flex flex-col gap-2 relative">
@@ -343,7 +343,7 @@ export default function Billing() {
                     onChange={(e) => setForm({ ...form, hours_used: e.target.value })} />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Rate / Hour (₹) *</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Rate / Hour (AED) *</label>
                   <input type="number" min="0" required
                     placeholder="e.g. 500"
                     className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
@@ -355,7 +355,7 @@ export default function Billing() {
               {/* Live Total */}
               {form.hours_used && form.hourly_rate && (
                 <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm font-medium">
-                  💰 Total Amount: <strong>₹{totalAmount(form.hours_used, form.hourly_rate)}</strong>
+                  💰 Total Amount: <strong>AED {totalAmount(form.hours_used, form.hourly_rate)}</strong>
                 </div>
               )}
 

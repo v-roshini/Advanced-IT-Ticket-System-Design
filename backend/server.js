@@ -22,6 +22,7 @@ app.use("/ai", require("./routes/ai"));
 app.use("/renewals", require("./routes/renewals"));
 app.use("/notifications", require("./routes/notifications"));
 app.use("/api/reports", require("./routes/reports"));
+app.use("/chat", require("./routes/chat"));
 
 app.use("/uploads", express.static("uploads"));
 
@@ -56,6 +57,10 @@ io.on("connection", (socket) => {
     socket.on("join", (userId) => {
         socket.join(`user_${userId}`);
         console.log(`👤 User ${userId} joined their notification room.`);
+        
+        // 📅 Proactively remind user about expiring/expired renewals upon login
+        const { notifyUserOfExpiringRenewals } = require("./services/renewalService");
+        notifyUserOfExpiringRenewals(Number(userId));
     });
 
     socket.on("disconnect", () => {
@@ -70,20 +75,24 @@ server.listen(PORT, async () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     const prisma = require("./config/prisma");
 
-    // Retry up to 3 times — Neon cold starts can take a few seconds
+    // Retry up to 10 times — Neon cold starts can take a few seconds
     let connected = false;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 10; attempt++) {
         try {
             await prisma.$connect();
             console.log("✅ Database Connected Successfully (Prisma)!");
             connected = true;
             break;
         } catch (err) {
-            console.warn(`⚠️ DB connect attempt ${attempt}/3 failed: ${err.message} Retrying in 5s...`);
-            if (attempt < 3) await new Promise(r => setTimeout(r, 5000));
+            console.warn(`⚠️ DB connect attempt ${attempt}/10 failed: ${err.message}. Retrying in 5s...`);
+            if (attempt < 10) await new Promise(r => setTimeout(r, 5000));
         }
     }
-    if (!connected) console.error("❌ Database could not connect after 3 attempts. Check Neon dashboard.");
+    if (!connected) {
+        console.error("❌ Database could not connect after 10 attempts. Exiting process.");
+        process.exit(1);
+    }
+
 
     // --- Renewal Manager Module ---
     const { startRenewalCron } = require("./services/renewalService");

@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 const ICONS = {
     ticket_created:  { emoji: "🎫", color: "#3B82F6" },
     ticket_assigned: { emoji: "⚡", color: "#6366F1" },
+    new_message:     { emoji: "💬", color: "#3B82F6" },
     customer_reply:  { emoji: "💬", color: "#10B981" },
     agent_reply:     { emoji: "💬", color: "#059669" },
     status_changed:  { emoji: "🔄", color: "#8B5CF6" },

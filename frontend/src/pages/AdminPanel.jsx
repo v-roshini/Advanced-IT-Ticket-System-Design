@@ -408,8 +408,8 @@ function BillingPanel() {
                   </td>
                   <td className="px-4 py-3 text-gray-600">{b.month}</td>
                   <td className="px-4 py-3 text-gray-600">{b.hours_used} hrs</td>
-                  <td className="px-4 py-3 text-gray-600">₹{b.hourly_rate}</td>
-                  <td className="px-4 py-3 font-bold text-green-600">₹{b.total_amount}</td>
+                  <td className="px-4 py-3 text-gray-600">AED {b.hourly_rate}</td>
+                  <td className="px-4 py-3 font-bold text-green-600">AED {b.total_amount}</td>
                   <td className="px-4 py-3">
                     {b.invoices?.length > 0 ? (
                       <span className="bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs font-medium">
@@ -469,7 +469,7 @@ function BillingPanel() {
                     onChange={(e) => setForm({ ...form, hours_used: e.target.value })} />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Rate/Hour (₹) *</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Rate/Hour (AED) *</label>
                   <input type="number" min="0" required placeholder="e.g. 500"
                     className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
                     value={form.hourly_rate}
@@ -479,7 +479,7 @@ function BillingPanel() {
 
               {form.hours_used && form.hourly_rate && (
                 <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg text-sm font-medium">
-                  💰 Total: <strong>₹{calcTotal(form.hours_used, form.hourly_rate)}</strong>
+                  💰 Total: <strong>AED {calcTotal(form.hours_used, form.hourly_rate)}</strong>
                 </div>
               )}
 
@@ -664,7 +664,7 @@ function Settings() {
             { label: "Company Name", key: "company_name" },
             { label: "Support Email", key: "email" },
             { label: "Phone Number", key: "phone" },
-            { label: "Default Hourly Rate (₹)", key: "hourly_rate" },
+            { label: "Default Hourly Rate (AED)", key: "hourly_rate" },
           ].map((f) => (
             <div key={f.key}>
               <label className="text-sm font-medium text-gray-700 mb-1 block">{f.label}</label>

@@ -41,11 +41,24 @@ async function processRenewalAlerts() {
       }
 
       if (newStatus !== r.status) {
+        const oldStatus = r.status;
         await prisma.renewal.update({
           where: { id: r.id },
           data: { status: newStatus },
         });
-        console.log(`✅ Status updated for ${r.asset_name}: ${r.status} → ${newStatus}`);
+        console.log(`✅ Status updated for ${r.asset_name}: ${oldStatus} → ${newStatus}`);
+
+        // 🔔 Alert when status changes to critical (Handles assets created already within the window)
+        if (newStatus === "expiring_soon" || newStatus === "expired") {
+            const urgencyMsg = newStatus === "expired" ? "has EXPIRED" : `expires in ${diffDays} days`;
+            const msg = `Asset '${r.asset_name}' ${urgencyMsg} for customer ${r.customer?.name}.`;
+            
+            await notifyAdmins("renewal_due", `⚠️ Renewal Status: ${newStatus.toUpperCase().replace('_', ' ')}`, msg, "/renewals");
+            
+            if (r.customer?.portal_user_id) {
+                await sendNotification(r.customer.portal_user_id, "renewal_due", "🚨 Urgent: Asset Renewal Needed", `Your asset '${r.asset_name}' ${urgencyMsg}. please contact us support@lenok.it for renewal.`, "/renewals");
+            }
+        }
       }
 
       // Auto-Ticket Creation (if 3 days overdue)
@@ -170,11 +183,61 @@ function startRenewalCron() {
   });
   console.log("🕒 Renewal Cron Job scheduled daily at 08:00 AM.");
   
-  // Optional: Run once at startup for demonstration/validation
-  // processRenewalAlerts();
+  // Run once at startup for demonstration/validation
+  processRenewalAlerts();
+}
+
+/**
+ * Proactively reminds a specific user of their expiring renewals.
+ * Called on login/socket connection.
+ */
+async function notifyUserOfExpiringRenewals(userId) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { customer: true }
+    });
+
+    if (!user) return;
+
+    let where = { status: { in: ["expiring_soon", "expired"] } };
+
+    // If client, only show their own
+    if (user.role === "client") {
+        if (!user.customer) return;
+        where.customer_id = user.customer.id;
+    }
+
+    const urgentRenewals = await prisma.renewal.findMany({ where });
+
+    if (urgentRenewals.length > 0) {
+        const expiringCount = urgentRenewals.filter(r => r.status === "expiring_soon").length;
+        const expiredCount = urgentRenewals.filter(r => r.status === "expired").length;
+
+        let msg = `You have ${urgentRenewals.length} urgent renewals: `;
+        if (expiredCount > 0) msg += `🔴 ${expiredCount} EXPIRED `;
+        if (expiringCount > 0) msg += `⏳ ${expiringCount} Expiring Soon`;
+
+        // Emit real-time notification (Toast only, no DB entry to avoid spam)
+        if (global.io) {
+            global.io.to(`user_${userId}`).emit("notification", {
+                type: "renewal_due",
+                title: "📅 Renewal Reminder",
+                message: msg,
+                link: "/renewals",
+                is_read: false,
+                created_at: new Date()
+            });
+            console.log(`📡 [Socket.io] Login-time reminder sent to User ${userId}`);
+        }
+    }
+  } catch (err) {
+    console.error("❌ Login Reminder Error:", err);
+  }
 }
 
 module.exports = {
   processRenewalAlerts,
   startRenewalCron,
+  notifyUserOfExpiringRenewals,
 };

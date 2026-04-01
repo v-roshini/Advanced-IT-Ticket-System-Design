@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiCalendar, FiList, FiSearch, FiArrowRight, FiCheckCircle, FiAlertCircle, FiClock, FiTrash2, FiEdit2, FiRepeat } from "react-icons/fi";
 import axios from "axios";
@@ -6,13 +6,13 @@ import axios from "axios";
 const BASE = process.env.REACT_APP_URL;
 
 const categoryIcons = {
-  domain: "🌐",
-  hosting: "☁️",
-  email: "📧",
-  ssl: "🔒",
-  software: "💿",
-  firewall: "🛡️",
-  amc: "🛠️",
+  domain: "ðŸŒ",
+  hosting: "â˜ï¸",
+  email: "ðŸ“§",
+  ssl: "ðŸ”’",
+  software: "ðŸ’¿",
+  firewall: "ðŸ›¡ï¸",
+  amc: "ðŸ› ï¸",
 };
 
 const statusColors = {
@@ -50,7 +50,7 @@ export default function Renewals() {
     purchase_date: "",
     expiry_date: "",
     cost: "",
-    currency: "INR",
+    currency: "AED",
     auto_renew: false,
     remind_one_week: true,
     remind_one_month: true,
@@ -93,10 +93,10 @@ export default function Renewals() {
     try {
       if (editId) {
         await axios.put(`${BASE}/renewals/${editId}`, formattedForm, { headers });
-        alert("✅ Renewal updated!");
+        alert("âœ… Renewal updated!");
       } else {
         await axios.post(`${BASE}/renewals`, formattedForm, { headers });
-        alert("✅ Renewal added!");
+        alert("âœ… Renewal added!");
       }
       setShowModal(false);
       setEditId(null);
@@ -116,7 +116,7 @@ export default function Renewals() {
       purchase_date: "",
       expiry_date: "",
       cost: "",
-      currency: "INR",
+      currency: "AED",
       auto_renew: false,
       remind_one_week: true,
       remind_one_month: true,
@@ -133,7 +133,7 @@ export default function Renewals() {
     if (!newDate) return;
     try {
       await axios.post(`${BASE}/renewals/${r.id}/renew`, { new_expiry_date: newDate, new_cost: r.cost }, { headers });
-      alert("✅ Renewed successfully!");
+      alert("âœ… Renewed successfully!");
       fetchData();
     } catch (err) { alert("Renewal failed"); }
   };
@@ -265,7 +265,7 @@ export default function Renewals() {
                       </p>
                       {isOverdue && <span className="text-[9px] text-red-500 font-black uppercase">Overdue</span>}
                     </td>
-                    <td className="px-6 py-4 font-black text-gray-900 italic">₹{r.cost?.toLocaleString() || 0}</td>
+                    <td className="px-6 py-4 font-black text-gray-900 italic">AED {r.cost?.toLocaleString() || 0}</td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <span className={`px-3 py-1 rounded-md text-[9px] font-black uppercase tracking-tight ${statusColors[r.status]}`}>
@@ -354,7 +354,7 @@ export default function Renewals() {
                 <input type="text" placeholder="GoDaddy, Google Cloud, AWS" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.vendor} onChange={e => setForm({ ...form, vendor: e.target.value })} />
               </div>
               <div className="col-span-1">
-                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Annual Market Cost (₹)</label>
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Annual Market Cost (AED)</label>
                 <input type="number" placeholder="599.00" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} />
               </div>
               <div className="col-span-1">

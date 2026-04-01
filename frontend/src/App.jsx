@@ -23,6 +23,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import CustomerTickets from "./pages/CustomerTickets";
 import CustomerBilling from "./pages/CustomerBilling";
 import CustomerRenewals from "./pages/CustomerRenewals";
+import Chat from "./pages/Chat";
 import ToastContainer from "./components/ToastContainer";
 import axios from "axios";
 
@@ -90,11 +91,11 @@ function App() {
         <Route path="/billing" element={<PrivateRoute><Layout><Billing /></Layout></PrivateRoute>} />
         <Route path="/worklog" element={<PrivateRoute><Layout><WorkLog /></Layout></PrivateRoute>} />
         <Route path="/admin" element={<PrivateRoute><Layout><AdminPanel /></Layout></PrivateRoute>} />
-        <Route path="/ai-chat" element={<PrivateRoute><Layout><AIChat /></Layout></PrivateRoute>} />
         <Route path="/agents" element={<PrivateRoute><Layout><Agents /></Layout></PrivateRoute>} />
         <Route path="/agents/:id" element={<PrivateRoute><Layout><AgentProfile /></Layout></PrivateRoute>} />
         <Route path="/renewals" element={<PrivateRoute><Layout><Renewals /></Layout></PrivateRoute>} />
         <Route path="/reports" element={<PrivateRoute><Layout><Reports /></Layout></PrivateRoute>} />
+        <Route path="/chat" element={<PrivateRoute><Layout><Chat /></Layout></PrivateRoute>} />
 
         {/* Customer Portal Specific */}
         <Route path="/customer/dashboard" element={<PrivateRoute><Layout><CustomerDashboard /></Layout></PrivateRoute>} />

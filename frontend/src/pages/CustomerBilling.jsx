@@ -65,7 +65,7 @@ export default function CustomerBilling() {
            <FiShield className="absolute top-0 right-0 p-4 opacity-10 text-[120px]"/>
            <div>
               <p className="text-blue-100 text-[10px] uppercase font-black tracking-widest mb-4 italic">Total Historical Spend</p>
-              <h3 className="text-5xl font-black tracking-tighter">₹{totalSpent.toLocaleString()}</h3>
+              <h3 className="text-5xl font-black tracking-tighter">AED {totalSpent.toLocaleString()}</h3>
            </div>
            <p className="mt-8 text-blue-200 text-xs font-bold uppercase tracking-tighter flex items-center gap-2">
               <FiCheckCircle /> Verified Transaction History
@@ -77,7 +77,7 @@ export default function CustomerBilling() {
              <p className="text-red-400 text-[10px] uppercase font-black tracking-widest mb-4 italic flex items-center gap-2">
                 <FiClock className="animate-pulse" /> Pending Balance
              </p>
-             <h3 className="text-5xl font-black tracking-tighter">₹{pendingAmount.toLocaleString()}</h3>
+             <h3 className="text-5xl font-black tracking-tighter">AED {pendingAmount.toLocaleString()}</h3>
            </div>
            <button className="mt-8 bg-red-600 text-white font-black py-4 rounded-3xl text-[10px] uppercase tracking-widest shadow-xl shadow-red-100 hover:scale-105 transition">Pay Outstanding Now</button>
         </div>
@@ -87,7 +87,7 @@ export default function CustomerBilling() {
              <p className="text-gray-400 text-[10px] uppercase font-black tracking-widest mb-4 italic flex items-center gap-2">
                 <FiTrendingUp className="text-green-500" /> Current Month Billing
              </p>
-             <h3 className="text-4xl font-black text-gray-800 tracking-tighter italic">₹{billing[0]?.total_amount.toLocaleString() || "0"}</h3>
+             <h3 className="text-4xl font-black text-gray-800 tracking-tighter italic">AED {billing[0]?.total_amount.toLocaleString() || "0"}</h3>
            </div>
            <p className="mt-8 text-gray-300 text-[10px] font-bold uppercase tracking-widest">Billing cycle resets in 12 days</p>
         </div>
@@ -130,7 +130,7 @@ export default function CustomerBilling() {
                       </div>
                    </td>
                    <td className="py-6 px-10 font-bold text-gray-500 uppercase text-xs tracking-tighter italic">{new Date(b.month + "-01").toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</td>
-                   <td className="py-6 px-10 text-lg">₹{b.total_amount.toLocaleString()}</td>
+                   <td className="py-6 px-10 text-lg">AED {b.total_amount.toLocaleString()}</td>
                    <td className="py-6 px-10">
                       <span className={`px-4 py-1.5 rounded-full text-[10px] uppercase font-black tracking-widest flex items-center gap-2 w-fit italic
                         ${b.invoices[0]?.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600 animate-pulse border border-red-100'}`}>

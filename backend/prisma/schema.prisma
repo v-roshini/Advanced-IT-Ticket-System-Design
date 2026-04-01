@@ -32,6 +32,8 @@ model User {
   work_logs           WorkLog[]
   sla_configs         SLAConfig[]
   notifications       Notification[]
+  sent_messages       ChatMessage[]     @relation("SentMessages")
+  received_messages   ChatMessage[]     @relation("ReceivedMessages")
 
   @@map("users")
 }
@@ -441,4 +443,20 @@ enum NotificationChannel {
   in_app
   email
   sms
+}
+
+model ChatMessage {
+  id          Int      @id @default(autoincrement())
+  sender_id   Int
+  receiver_id Int
+  message     String   @db.Text
+  is_read     Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  sender      User     @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver    User     @relation("ReceivedMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@index([sender_id])
+  @@index([receiver_id])
+  @@map("chat_messages")
 }

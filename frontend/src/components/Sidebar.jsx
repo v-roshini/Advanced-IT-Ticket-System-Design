@@ -15,7 +15,7 @@ const navItems = [
     { label: "Admin Panel", path: "/admin", icon: <FiShield /> },
     { label: "Renewals", path: "/renewals", icon: <FiRefreshCw />, permissionKey: "can_view_renewals" },
     { label: "Reports", path: "/reports", icon: <FiFileText />, permissionKey: "can_view_reports" },
-    { label: "AI Chat", path: "/ai-chat", icon: <FiMessageSquare />, badge: "AI" },
+    { label: "Messages", path: "/chat", icon: <FiMessageSquare /> },
 ];
 
 export default function Sidebar() {
@@ -50,8 +50,7 @@ export default function Sidebar() {
                         if (user.role === "admin") return true;
                         
                         // Basic common items for everyone
-                        const common = ["Dashboard"];
-                        if (item.label === "AI Chat" && user.role === "client") return true;
+                        const common = ["Dashboard", "Messages"];
                         if (common.includes(item.label)) return true;
 
                         // Check permissions

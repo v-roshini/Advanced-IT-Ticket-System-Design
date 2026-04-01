@@ -19,6 +19,7 @@ function NotifIcon({ type, size = 14 }) {
     const map = {
         ticket_created:  { icon: FiFlag,         color: "text-blue-500",   bg: "bg-blue-50" },
         ticket_assigned: { icon: FiZap,           color: "text-indigo-500", bg: "bg-indigo-50" },
+        new_message:     { icon: FiMessageSquare, color: "text-blue-600",   bg: "bg-blue-50" },
         customer_reply:  { icon: FiMessageSquare, color: "text-green-500",  bg: "bg-green-50" },
         agent_reply:     { icon: FiMessageSquare, color: "text-green-600",  bg: "bg-green-50" },
         status_changed:  { icon: FiCheckCircle,   color: "text-purple-500", bg: "bg-purple-50" },
@@ -114,9 +115,12 @@ export default function NotificationBell() {
             socket.on("notification", (newNotif) => {
                 console.log("🔔 Real-time notification:", newNotif);
 
-                // Add to notification list (top)
-                setNotifications(prev => [newNotif, ...prev]);
-                setUnreadCount(prev => prev + 1);
+                // Add to notification list (top), preventing duplicates
+                setNotifications(prev => {
+                    if (prev.some(n => n.id === newNotif.id)) return prev;
+                    setUnreadCount(count => count + 1);
+                    return [newNotif, ...prev];
+                });
 
                 // Show floating popup toast
                 showToast(newNotif.title, newNotif.message, newNotif.type);
@@ -136,7 +140,10 @@ export default function NotificationBell() {
         }
 
         return () => {
-            if (socketRef.current) socketRef.current.disconnect();
+            if (socketRef.current) {
+                socketRef.current.off("notification");
+                socketRef.current.disconnect();
+            }
         };
     }, [fetchNotifications]);
 

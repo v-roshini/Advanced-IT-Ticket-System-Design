@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { FiArrowLeft } from "react-icons/fi";
+import { FiArrowLeft, FiCpu, FiSend, FiUser, FiCheckCircle, FiAlertCircle, FiX } from "react-icons/fi";
 import axios from "axios";
 
 const priorities = ["Critical", "High", "Medium", "Low"];
@@ -11,6 +11,12 @@ export default function CreateTicket() {
   const [loading, setLoading] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [visionLoading, setVisionLoading] = useState(false);
+  const [showAiChat, setShowAiChat] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: "assistant", content: "👋 Hi! I'm your AI Assistant. I can help you summarize your issue or even draft the ticket for you. How can I help today?" }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({
     customer_id: "", customerName: "", company: "", issue_title: "",
@@ -103,6 +109,39 @@ export default function CreateTicket() {
       alert("Screenshot analysis failed");
     } finally {
       setVisionLoading(false);
+    }
+  };
+
+  const handleChatSend = async (e) => {
+    e.preventDefault();
+    if (!chatInput.trim() || chatLoading) return;
+
+    const userMsg = { role: "user", content: chatInput };
+    setMessages(prev => [...prev, userMsg]);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(`${process.env.REACT_APP_URL}/ai/chat`, {
+        message: chatInput,
+        context: messages.slice(-6)
+      }, { headers: { Authorization: `Bearer ${token}` } });
+
+      setMessages(prev => [...prev, { role: "assistant", content: res.data.reply }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "assistant", content: "Sorry, I'm having trouble connecting right now." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const useAiDraft = () => {
+    // Extract last assistant message if it looks like a summary
+    const lastMsg = [...messages].reverse().find(m => m.role === "assistant");
+    if (lastMsg) {
+      setForm(prev => ({ ...prev, description: lastMsg.content }));
+      setShowAiChat(false);
     }
   };
 
@@ -247,6 +286,15 @@ export default function CreateTicket() {
                   {aiLoading ? "Classifying..." : "Auto-Classify Text"}
                 </button>
               </div>
+              <div className="h-px sm:h-8 w-full sm:w-px bg-blue-200"></div>
+              <div className="flex-1 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowAiChat(true)}
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-700 transition flex items-center gap-2 shadow-sm">
+                  <FiCpu /> Chat with AI Assistant
+                </button>
+              </div>
             </div>
             {visionLoading && (
               <div className="mt-3 flex items-center gap-2 text-blue-700 text-sm font-medium">
@@ -325,6 +373,65 @@ export default function CreateTicket() {
           </div>
         </form>
       </div>
+
+      {/* AI Chat Sidebar Overlay */}
+      {showAiChat && (
+        <div className="fixed inset-0 z-[60] flex justify-end">
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={() => setShowAiChat(false)}></div>
+          <div className="relative w-full max-w-md bg-white h-screen shadow-2xl flex flex-col animate-slide-in-right">
+            <div className="p-4 border-b flex items-center justify-between bg-indigo-900 text-white">
+              <div className="flex items-center gap-2">
+                <FiCpu className="text-indigo-300" />
+                <h3 className="font-bold">AI Support Assistant</h3>
+              </div>
+              <button onClick={() => setShowAiChat(false)} className="hover:bg-white/10 p-1 rounded transition">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 bg-gray-50">
+              {messages.map((m, i) => (
+                <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] p-3 rounded-xl text-sm shadow-sm ${m.role === "user" ? "bg-indigo-600 text-white" : "bg-white text-gray-800 border"}`}>
+                    {m.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-white p-3 rounded-xl border flex gap-1 items-center">
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.1s]"></span>
+                    <span className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:0.2s]"></span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-white border-t">
+              <form onSubmit={handleChatSend} className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  placeholder="Ask AI anything..."
+                  className="flex-1 border rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-400"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                />
+                <button type="submit" disabled={chatLoading} className="bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition">
+                  <FiSend />
+                </button>
+              </form>
+              <button
+                type="button"
+                onClick={useAiDraft}
+                className="w-full bg-blue-50 text-blue-700 py-2 rounded-lg text-xs font-bold border border-blue-100 hover:bg-blue-100 transition"
+              >
+                Auto-fill Description with AI Reply
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -232,7 +232,7 @@ export default function CustomerDashboard() {
                 <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${daysLeft <= 7 ? "bg-red-100 text-red-600 animate-pulse" : daysLeft <= 30 ? "bg-orange-100 text-orange-600" : "bg-blue-50 text-blue-600"}`}>
                   <FiClock size={10}/> {daysLeft} Days Left
                 </span>
-                <span className="text-xs font-bold text-gray-500">₹{nextRenewal.cost?.toLocaleString()}</span>
+                <span className="text-xs font-bold text-gray-500">AED {nextRenewal.cost?.toLocaleString()}</span>
               </div>
               {upcoming.length > 1 && (
                 <p className="text-[9px] font-bold text-gray-300 uppercase tracking-widest mt-4">+{upcoming.length - 1} more upcoming</p>
@@ -259,7 +259,7 @@ export default function CustomerDashboard() {
           </p>
           <div className="flex-1">
             <p className={`text-4xl font-black tracking-tighter ${pendingTotal > 0 ? "text-red-600" : "text-gray-800"}`}>
-              ₹{pendingTotal.toLocaleString()}
+              AED {pendingTotal.toLocaleString()}
             </p>
             <p className="text-xs text-gray-400 font-bold uppercase tracking-tight mt-1">
               {pendingBills.length > 0 ? `Due from ${pendingBills.length} invoice${pendingBills.length > 1 ? "s" : ""}` : "All invoices settled ✓"}

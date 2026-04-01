@@ -38,6 +38,7 @@ const Reports = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    setData(null); // Clear previous data to prevent rendering mismatched report types
     try {
       const token = localStorage.getItem("token");
       const params = new URLSearchParams(filters);
@@ -98,8 +99,8 @@ const Reports = () => {
               <div className="h-64">
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
-                    <Pie data={data.summaryByStatus} dataKey="_count.id" nameKey="status" cx="50%" cy="50%" outerRadius={80} label>
-                      {data.summaryByStatus.map((entry, index) => (
+                    <Pie data={data.summaryByStatus || []} dataKey="_count.id" nameKey="status" cx="50%" cy="50%" outerRadius={80} label>
+                      {(data.summaryByStatus || []).map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
@@ -113,7 +114,7 @@ const Reports = () => {
               <h3 className="text-lg font-semibold mb-4">Tickets by Priority</h3>
               <div className="h-64">
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={data.summaryByPriority}>
+                  <BarChart data={data.summaryByPriority || []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="priority" />
                     <YAxis />
@@ -139,7 +140,7 @@ const Reports = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {data.map(agent => (
+                {Array.isArray(data) && data.map(agent => (
                   <tr key={agent.agent_id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">{agent.name}</td>
                     <td className="px-6 py-4 text-sm text-gray-600">{agent.resolvedCount}</td>
@@ -165,7 +166,7 @@ const Reports = () => {
              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 h-80">
                 <h3 className="text-lg font-semibold mb-4">Revenue Trend</h3>
                 <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={Object.entries(data.revenueTrend).map(([key, value]) => ({ month: key, revenue: value }))}>
+                  <LineChart data={data.revenueTrend ? Object.entries(data.revenueTrend).map(([key, value]) => ({ month: key, revenue: value })) : []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />

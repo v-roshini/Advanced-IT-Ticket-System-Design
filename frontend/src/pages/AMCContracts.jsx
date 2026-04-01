@@ -278,7 +278,7 @@ export default function AMCContracts() {
                 <div className="flex justify-between items-center text-xs pt-3 border-t">
                   <div className="text-gray-500 flex flex-col gap-0.5">
                     <span className="font-medium text-[10px] uppercase">Overage Rate</span>
-                    <span className="font-bold text-gray-700">₹{c.extra_hour_rate || 0}/hr</span>
+                    <span className="font-bold text-gray-700">AED {c.extra_hour_rate || 0}/hr</span>
                   </div>
                   
                   <div className="flex items-center gap-3">
@@ -403,7 +403,7 @@ export default function AMCContracts() {
               {/* Extra Fields */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Extra Hour Rate (₹)</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Extra Hour Rate (AED)</label>
                   <input type="number" min="0" className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400" placeholder="e.g. 1500" value={form.extra_hour_rate} onChange={(e) => setForm({ ...form, extra_hour_rate: parseFloat(e.target.value) || 0 })} />
                 </div>
                 <div className="flex items-center gap-2 mt-6">
