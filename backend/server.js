@@ -17,7 +17,7 @@ app.use("/agents", require("./routes/agents"));
 app.use("/amc", require("./routes/amc"));
 app.use("/api/billing", require("./routes/billing"));
 app.use("/api/invoices", require("./routes/invoices"));
-app.use("/api/admin", require("./routes/admin")); // P1: Admin Panel Logic
+app.use("/api/admin", require("./routes/admin"));
 app.use("/ai", require("./routes/ai"));
 app.use("/renewals", require("./routes/renewals"));
 app.use("/notifications", require("./routes/notifications"));
@@ -45,27 +45,9 @@ const { Server } = require("socket.io");
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
-        origin: "*", // Adjust in production
+        origin: "*",
         methods: ["GET", "POST"]
     }
-});
-
-// Socket.io Connection
-io.on("connection", (socket) => {
-    console.log("🔌 New Client Connected:", socket.id);
-
-    socket.on("join", (userId) => {
-        socket.join(`user_${userId}`);
-        console.log(`👤 User ${userId} joined their notification room.`);
-        
-        // 📅 Proactively remind user about expiring/expired renewals upon login
-        const { notifyUserOfExpiringRenewals } = require("./services/renewalService");
-        notifyUserOfExpiringRenewals(Number(userId));
-    });
-
-    socket.on("disconnect", () => {
-        console.log("🔌 Client Disconnected:", socket.id);
-    });
 });
 
 // Export io for use in other files
@@ -88,18 +70,37 @@ server.listen(PORT, async () => {
             if (attempt < 10) await new Promise(r => setTimeout(r, 5000));
         }
     }
+
     if (!connected) {
         console.error("❌ Database could not connect after 10 attempts. Exiting process.");
         process.exit(1);
     }
 
+    // --- 🎯 REGISTER SOCKET LISTENERS ONLY AFTER DB IS READY ---
+    io.on("connection", (socket) => {
+        console.log("🔌 New Client Connected:", socket.id);
 
-    // --- Renewal Manager Module ---
+        socket.on("join", (userId) => {
+            socket.join(`user_${userId}`);
+            console.log(`👤 User ${userId} joined their notification room.`);
+            
+            // 📅 Proactively remind user about expiring/expired renewals upon login
+            const { notifyUserOfExpiringRenewals } = require("./services/renewalService");
+            notifyUserOfExpiringRenewals(Number(userId));
+        });
+
+        socket.on("disconnect", () => {
+            console.log("🔌 Client Disconnected:", socket.id);
+        });
+    });
+
+    // --- 🔄 START CRON JOBS ONLY AFTER DB IS READY ---
     const { startRenewalCron } = require("./services/renewalService");
     startRenewalCron();
 
-    // --- SLA Manager & Engine Module ---
     const { startSLACron } = require("./services/slaService");
     startSLACron();
-});
 
+    const { startBillingCron } = require("./services/billingService");
+    startBillingCron();
+});

@@ -128,6 +128,38 @@ async function processRenewalAlerts() {
         });
       }
     }
+    // 🏁 End of the regular asset scanning loop
+
+    // --- 📅 AMC Expiry Scan ---
+    console.log("⏱️ Scanning AMC Contracts for Expiry...");
+    const amcs = await prisma.contractAMC.findMany({
+      include: { customer: true }
+    });
+
+    for (const amc of amcs) {
+      const expDate = new Date(amc.end_date);
+      expDate.setHours(0, 0, 0, 0);
+
+      const diffTime = expDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      const alertDays = [30, 7, 3, 1];
+      if (alertDays.includes(diffDays)) {
+        const msg = `AMC contract for customer '${amc.customer?.name}' expires in ${diffDays} days.`;
+        
+        await notifyAdmins("amc_expiry", "⚠️ AMC Contract Expiry", msg, "/amc");
+        
+        if (amc.customer?.portal_user_id) {
+          await sendNotification(
+            amc.customer.portal_user_id,
+            "amc_expiry",
+            "📅 AMC Contract Expiry Alert",
+            `Your Annual Maintenance Contract (AMC) with us expires in ${diffDays} days. Please contact us for renewal.`,
+            "/amc"
+          );
+        }
+      }
+    }
 
     // --- Monthly Summary Notification ---
     await sendMonthlyRenewalSummary();
@@ -232,7 +264,11 @@ async function notifyUserOfExpiringRenewals(userId) {
         }
     }
   } catch (err) {
-    console.error("❌ Login Reminder Error:", err);
+    if (err.code === 'P1001' || err.code === 'P1017' || err.name === 'PrismaClientInitializationError') {
+      console.warn("⚠️  Renewal Reminder: DB is sleeping/connecting. Skipping login reminder.");
+    } else {
+      console.error("❌ Login Reminder Error:", err);
+    }
   }
 }
 

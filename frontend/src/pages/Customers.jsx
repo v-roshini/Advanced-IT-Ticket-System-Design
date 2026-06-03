@@ -9,13 +9,14 @@ export default function Customers() {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
 
+  const [showPassword, setShowPassword] = useState(false);
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({
-    name: "", company: "", email: "", phone: "", type: "Monthly", status: "Active", notes: "", portal_login: false
+    name: "", company: "", email: "", phone: "", type: "Monthly", status: "Active", notes: "", portal_login: true, password: ""
   });
 
   const token = localStorage.getItem("token");
@@ -39,7 +40,8 @@ export default function Customers() {
 
   const openAddModal = () => {
     setEditId(null);
-    setForm({ name: "", company: "", email: "", phone: "", type: "Monthly", status: "Active", notes: "", portal_login: false });
+    setForm({ name: "", company: "", email: "", phone: "", type: "Monthly", status: "Active", notes: "", portal_login: true, password: "" });
+    setShowPassword(false);
     setShowModal(true);
   };
 
@@ -56,16 +58,12 @@ export default function Customers() {
         await axios.put(`${BASE}/customers/${editId}`, form, { headers });
         alert("✅ Customer updated!");
       } else {
-        const res = await axios.post(`${BASE}/customers`, form, { headers });
-        if (res.data.generatedPassword) {
-          alert(`✅ Customer added!\n\nPortal Login Created!\nEmail: ${form.email}\nTemp Password: ${res.data.generatedPassword}\n\nPlease save this password before closing.`);
-        } else {
-          alert("✅ Customer added!");
-        }
+        await axios.post(`${BASE}/customers`, form, { headers });
+        alert("✅ Customer added!");
       }
       setShowModal(false);
       setEditId(null);
-      setForm({ name: "", company: "", email: "", phone: "", type: "Monthly", status: "Active", notes: "", portal_login: false });
+      setForm({ name: "", company: "", email: "", phone: "", type: "Monthly", status: "Active", notes: "", portal_login: true, password: "" });
       fetchCustomers();
     } catch (err) {
       alert(err.response?.data?.message || "Failed to save customer");
@@ -327,17 +325,23 @@ export default function Customers() {
                   onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
 
-              {!editId && form.email && (
-                <div className="flex items-center gap-2 mt-1">
-                  <input 
-                    type="checkbox" 
-                    id="portal_login"
-                    checked={form.portal_login}
-                    onChange={(e) => setForm({ ...form, portal_login: e.target.checked })}
-                  />
-                  <label htmlFor="portal_login" className="text-sm text-gray-700 cursor-pointer">
-                    Enable Portal Login (Auto-generates password)
-                  </label>
+              {!editId && (
+                <div className="group animate-in slide-in-from-top-2 duration-300">
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Password *</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="Enter custom password"
+                      required
+                      className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 pr-12"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })} 
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-xs font-bold text-gray-400 hover:text-blue-700 select-none">
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </div>
               )}
 

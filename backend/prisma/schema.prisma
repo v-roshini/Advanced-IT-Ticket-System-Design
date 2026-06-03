@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "darwin-arm64"]
 }
 
 datasource db {
@@ -319,7 +320,7 @@ model Renewal {
   purchase_date     DateTime?       @db.Date
   expiry_date       DateTime        @db.Date
   cost              Float?
-  currency          String          @default("INR")
+  currency          String          @default("AED")
   auto_renew        Boolean         @default(false)
   remind_one_week   Boolean         @default(true)
   remind_one_month  Boolean         @default(true)
@@ -372,6 +373,7 @@ enum Role {
   admin
   agent
   client
+  finance
 }
 
 enum CustomerType {

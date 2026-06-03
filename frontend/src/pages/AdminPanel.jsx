@@ -8,7 +8,7 @@ const tabs = ["Overview", "Users", "AMC Contracts", "Billing", "Permissions", "S
 // ─────────────────────────────────────────
 // ADMIN OVERVIEW
 // ─────────────────────────────────────────
-function AdminOverview() {
+function AdminOverview({ onQuickAction }) {
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeContracts: 0,
@@ -64,12 +64,12 @@ function AdminOverview() {
         <h3 className="font-semibold text-blue-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: "Add New Agent", color: "bg-blue-50 text-blue-700 hover:bg-blue-100", href: "/agents" },
-            { label: "Create Invoice", color: "bg-green-50 text-green-700 hover:bg-green-100", href: "/billing" },
-            { label: "Add AMC Contract", color: "bg-purple-50 text-purple-700 hover:bg-purple-100", href: "/amc" },
+            { label: "Add New Agent", color: "bg-blue-50 text-blue-700 hover:bg-blue-100", action: () => onQuickAction("Users", "agent") },
+            { label: "Create Invoice", color: "bg-green-50 text-green-700 hover:bg-green-100", action: () => onQuickAction("Billing", "invoice") },
+            { label: "Add AMC Contract", color: "bg-purple-50 text-purple-700 hover:bg-purple-100", action: () => onQuickAction("AMC Contracts", "amc") },
           ].map((a) => (
             <button key={a.label}
-              onClick={() => window.location.href = a.href}
+              onClick={a.action}
               className={`${a.color} px-4 py-3 rounded-xl text-sm font-medium transition`}>
               {a.label}
             </button>
@@ -83,11 +83,18 @@ function AdminOverview() {
 // ─────────────────────────────────────────
 // AMC CONTRACTS
 // ─────────────────────────────────────────
-function AMCContracts() {
+function AMCContracts({ triggerOpenModal, onModalConsumed }) {
   const [contracts, setContracts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (triggerOpenModal === "amc") {
+      setShowModal(true);
+      if (onModalConsumed) onModalConsumed();
+    }
+  }, [triggerOpenModal, onModalConsumed]);
   const [form, setForm] = useState({
     customer_id: "", company_name: "", start_date: "",
     end_date: "", monthly_hours: 10, priority_sla: "",
@@ -302,11 +309,18 @@ function AMCContracts() {
 // ─────────────────────────────────────────
 // BILLING PANEL
 // ─────────────────────────────────────────
-function BillingPanel() {
+function BillingPanel({ triggerOpenModal, onModalConsumed }) {
   const [bills, setBills] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (triggerOpenModal === "invoice") {
+      setShowModal(true);
+      if (onModalConsumed) onModalConsumed();
+    }
+  }, [triggerOpenModal, onModalConsumed]);
   const [form, setForm] = useState({
     customer_id: "", hours_used: "", hourly_rate: "", month: ""
   });
@@ -505,9 +519,22 @@ function BillingPanel() {
 // USER MANAGEMENT TAB
 // ─────────────────────────────────────────
 
-function UserManagement() {
+function UserManagement({ triggerOpenModal, onModalConsumed }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    role: "agent",
+    password: "",
+    specialization: "Level 1 Support",
+    availability: "Online",
+    company: ""
+  });
+
   const token = localStorage.getItem("token");
   const headers = { Authorization: `Bearer ${token}` };
 
@@ -515,12 +542,46 @@ function UserManagement() {
     fetchUsers();
   }, []);
 
+  useEffect(() => {
+    if (triggerOpenModal === "agent" || triggerOpenModal === "admin" || triggerOpenModal === "client") {
+      openAddModal(triggerOpenModal);
+      if (onModalConsumed) onModalConsumed();
+    }
+  }, [triggerOpenModal, onModalConsumed]);
+
   const fetchUsers = async () => {
     try {
       const res = await axios.get(`${BASE}/api/admin/users`, { headers });
       setUsers(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  const openAddModal = (role) => {
+    setForm({
+      full_name: "",
+      email: "",
+      phone: "",
+      role: role || "client",
+      password: "",
+      specialization: "Level 1 Support",
+      availability: "Online",
+      company: ""
+    });
+    setShowPassword(false);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post(`${BASE}/auth/register`, form, { headers });
+      alert(`✅ User created successfully as ${form.role.toUpperCase()}!`);
+      setShowModal(false);
+      fetchUsers();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to create user");
+    }
   };
 
   const handleToggleStatus = async (id, currentStatus) => {
@@ -532,9 +593,25 @@ function UserManagement() {
 
   return (
     <div className="bg-white rounded-xl shadow overflow-hidden">
-      <div className="p-6 border-b flex justify-between items-center">
-        <h3 className="font-bold text-blue-900">User & Agent Directory</h3>
-        <span className="text-xs text-gray-500 font-medium">Manage IDs, Roles & Access</span>
+      <div className="p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="font-bold text-blue-900 text-lg">User & Agent Directory</h3>
+          <span className="text-xs text-gray-400 font-medium">Manage roles and permissions</span>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => openAddModal("admin")}
+            className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3.5 py-2 rounded-xl hover:bg-indigo-100 transition text-xs font-bold uppercase tracking-wider">
+            <FiPlus /> Create Admin
+          </button>
+          <button onClick={() => openAddModal("agent")}
+            className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 text-blue-700 px-3.5 py-2 rounded-xl hover:bg-blue-100 transition text-xs font-bold uppercase tracking-wider">
+            <FiPlus /> Create Agent
+          </button>
+          <button onClick={() => openAddModal("client")}
+            className="flex items-center gap-1.5 bg-green-50 border border-green-200 text-green-700 px-3.5 py-2 rounded-xl hover:bg-green-100 transition text-xs font-bold uppercase tracking-wider">
+            <FiPlus /> Create Client
+          </button>
+        </div>
       </div>
       <table className="w-full text-sm text-left">
         <thead className="bg-gray-50 text-gray-600 uppercase text-[10px] font-bold tracking-wider">
@@ -572,6 +649,88 @@ function UserManagement() {
           ))}
         </tbody>
       </table>
+
+      {/* Create User Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4 overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-bold text-blue-900 capitalize">
+                Create New {form.role}
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600">
+                <FiX size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Full Name *</label>
+                <input type="text" required className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400" value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Email Address *</label>
+                <input type="email" required className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Phone Number</label>
+                <input type="text" className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Password *</label>
+                <div className="relative">
+                  <input type={showPassword ? "text" : "password"} required className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400 pr-12" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-2.5 text-xs font-bold text-gray-400 hover:text-blue-700 select-none">
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
+              </div>
+
+              {form.role === "client" && (
+                <div>
+                  <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Company Name</label>
+                  <input type="text" className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none focus:ring-2 focus:ring-blue-400" value={form.company} onChange={(e) => setForm({ ...form, company: e.target.value })} />
+                </div>
+              )}
+
+              {form.role === "agent" && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Specialization</label>
+                    <select className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none" value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })}>
+                      <option value="Level 1 Support">Level 1 Support</option>
+                      <option value="Level 2 Support">Level 2 Support</option>
+                      <option value="Senior Agent">Senior Agent</option>
+                      <option value="Network IT">Network IT</option>
+                      <option value="Hardware IT">Hardware IT</option>
+                      <option value="Account Manager">Account Manager</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase mb-1 block">Status</label>
+                    <select className="border rounded-lg px-4 py-2.5 text-sm w-full outline-none" value={form.availability} onChange={(e) => setForm({ ...form, availability: e.target.value })}>
+                      <option value="Online">Online</option>
+                      <option value="Offline">Offline</option>
+                      <option value="Busy">Busy</option>
+                      <option value="On Leave">On Leave</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2 mt-2 border-t pt-4">
+                <button type="submit" className="flex-1 bg-blue-700 text-white py-2.5 rounded-lg font-semibold hover:bg-blue-800 transition text-sm">
+                  Create User
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -821,7 +980,17 @@ function AdminPermissions() {
 // ─────────────────────────────────────────
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState("Overview");
+  const [triggerOpenModal, setTriggerOpenModal] = useState(null);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
+
+  const handleQuickAction = (tabName, modalKey) => {
+    setActiveTab(tabName);
+    setTriggerOpenModal(modalKey);
+  };
+
+  const handleModalConsumed = () => {
+    setTriggerOpenModal(null);
+  };
 
   return (
     <div>
@@ -864,10 +1033,10 @@ export default function AdminPanel() {
 
       {/* Tab Content */}
       <div className="animate-in fade-in duration-500">
-        {activeTab === "Overview" && <AdminOverview />}
-        {activeTab === "Users" && <UserManagement />}
-        {activeTab === "AMC Contracts" && <AMCContracts />}
-        {activeTab === "Billing" && <BillingPanel />}
+        {activeTab === "Overview" && <AdminOverview onQuickAction={handleQuickAction} />}
+        {activeTab === "Users" && <UserManagement triggerOpenModal={triggerOpenModal} onModalConsumed={handleModalConsumed} />}
+        {activeTab === "AMC Contracts" && <AMCContracts triggerOpenModal={triggerOpenModal} onModalConsumed={handleModalConsumed} />}
+        {activeTab === "Billing" && <BillingPanel triggerOpenModal={triggerOpenModal} onModalConsumed={handleModalConsumed} />}
         {activeTab === "Permissions" && <AdminPermissions />}
         {activeTab === "System Logs" && <SystemLogs />}
         {activeTab === "Settings" && <Settings />}

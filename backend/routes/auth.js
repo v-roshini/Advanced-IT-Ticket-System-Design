@@ -7,7 +7,7 @@ require("dotenv").config();
 
 // REGISTER
 router.post("/register", async (req, res) => {
-    const { full_name, email, phone, role, password } = req.body;
+    const { full_name, email, phone, role, password, specialization, availability, company } = req.body;
 
     if (!full_name || !email || !password)
         return res.status(400).json({ message: "All fields are required" });
@@ -27,18 +27,21 @@ router.post("/register", async (req, res) => {
                 phone,
                 role: role || "client",
                 password: hashedPassword,
+                specialization: role === "agent" ? (specialization || "Level 1 Support") : null,
+                availability: role === "agent" ? (availability || "Online") : null,
             },
         });
 
-        // ✅ If user is a 'client', also save them as a 'Customer'
+        // ✅ If user is a 'client', also save them as a 'Customer' and link portal_user_id
         if (user.role === "client") {
             await prisma.customer.create({
                 data: {
                     name: full_name,
                     email: email,
                     phone: phone || null,
-                    company: req.body.company || null,
+                    company: company || null,
                     type: "Monthly", // Default type
+                    portal_user_id: user.id,
                 },
             });
         }

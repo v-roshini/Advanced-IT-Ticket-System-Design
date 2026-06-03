@@ -51,7 +51,7 @@ router.get("/:id", verifyToken, async (req, res) => {
 });
 
 router.post("/", verifyToken, async (req, res) => {
-    let { name, company, email, phone, type, status, notes, portal_login } = req.body;
+    let { name, company, email, phone, type, status, notes, portal_login, password } = req.body;
     if (company) company = company.trim().toUpperCase();
     try {
         let portal_user_id = null;
@@ -61,8 +61,8 @@ router.post("/", verifyToken, async (req, res) => {
             // Check if user already exists
             const existingUser = await prisma.user.findUnique({ where: { email } });
             if (!existingUser) {
-                generatedPassword = Math.random().toString(36).slice(-8); // Generate 8-char password
-                const hashedPassword = await bcrypt.hash(generatedPassword, 10);
+                const passwordToHash = password || Math.random().toString(36).slice(-8);
+                const hashedPassword = await bcrypt.hash(passwordToHash, 10);
                 const newUser = await prisma.user.create({
                     data: {
                         full_name: name,

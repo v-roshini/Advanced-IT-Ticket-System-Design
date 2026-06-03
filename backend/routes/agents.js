@@ -75,15 +75,19 @@ router.get("/:id", verifyToken, async (req, res) => {
 
 // Invite Agent (P0)
 router.post("/invite", verifyToken, async (req, res) => {
-    const { full_name, email, phone, role, specialization } = req.body;
+    const { full_name, email, phone, role, specialization, system_login, password } = req.body;
     if (!full_name || !email) return res.status(400).json({ message: "Name and email required." });
 
     try {
         const existing = await prisma.user.findUnique({ where: { email } });
         if (existing) return res.status(400).json({ message: "Email already exists" });
 
-        const invitePassword = Math.random().toString(36).slice(-10); // Auto-generate
-        const hashedPassword = await bcrypt.hash(invitePassword, 10);
+        let invitePassword = null;
+        let passwordToHash = password || Math.random().toString(36).slice(-10);
+        if (system_login && !password) {
+            invitePassword = passwordToHash;
+        }
+        const hashedPassword = await bcrypt.hash(passwordToHash, 10);
 
         const newAgent = await prisma.user.create({
             data: {

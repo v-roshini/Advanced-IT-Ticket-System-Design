@@ -162,4 +162,50 @@ router.delete("/:id", verifyToken, async (req, res) => {
     }
 });
 
+// GET real-time AMC balance
+router.get("/:id/balance", verifyToken, async (req, res) => {
+    try {
+        const contract = await prisma.contractAMC.findUnique({
+            where: { id: Number(req.params.id) },
+            include: { customer: true }
+        });
+
+        if (!contract) return res.status(404).json({ message: "Contract not found" });
+
+        // Fetch all work logs for this customer in this contract's date range
+        const logs = await prisma.workLog.findMany({
+            where: {
+                ticket: { customer_id: contract.customer_id },
+                created_at: {
+                    gte: contract.start_date,
+                    lte: contract.end_date
+                }
+            }
+        });
+
+        let totalCalculatedHours = 0;
+        logs.forEach(l => {
+            const timeStr = String(l.time_spent || "0h");
+            const hMatch = timeStr.match(/(\d+)h/);
+            if (hMatch) totalCalculatedHours += parseInt(hMatch[1], 10);
+            const mMatch = timeStr.match(/(\d+)m/);
+            if (mMatch) totalCalculatedHours += parseInt(mMatch[1], 10) / 60;
+        });
+
+        res.json({
+            contract_id: contract.id,
+            customer: contract.customer?.name,
+            monthly_limit: contract.monthly_hours,
+            hours_used_stored: contract.hours_used,
+            hours_used_calculated: totalCalculatedHours,
+            remaining: Math.max(0, contract.monthly_hours - totalCalculatedHours),
+            overage: Math.max(0, totalCalculatedHours - contract.monthly_hours)
+        });
+    } catch (err) {
+        console.error("❌ AMC Balance Error:", err.message);
+        res.status(500).json({ message: err.message });
+    }
+});
+
+
 module.exports = router;

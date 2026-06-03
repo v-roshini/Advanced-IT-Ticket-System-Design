@@ -12,25 +12,16 @@ async function getCustomerId(userId) {
     return customer?.id;
 }
 
-router.get("/", verifyToken, async (req, res) => {
+router.get("/", verifyToken, checkPermission('can_view_billing'), async (req, res) => {
   try {
     let whereClause = {};
+    
+    // Admins and Finance (if permitted) see everything. 
+    // Agents & Clients only see what's allowed.
     if (req.user.role === 'client') {
-        const canView = await prisma.permission.findFirst({
-            where: { role: 'client', permission_key: 'can_view_billing', is_enabled: true }
-        });
-        if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view billing history." });
-
         const custId = await getCustomerId(req.user.id);
         if (!custId) return res.status(403).json({ message: "Customer profile not found" });
         whereClause.customer_id = custId;
-    }
-
-    if (req.user.role === 'agent') {
-        const canView = await prisma.permission.findFirst({
-            where: { role: 'agent', permission_key: 'can_view_billing', is_enabled: true }
-        });
-        if (!canView) return res.status(403).json({ message: "Permission Denied: You cannot view billing records." });
     }
 
     const bills = await prisma.billing.findMany({
@@ -95,16 +86,49 @@ router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (re
 
       // Create Line Items
       if (logs.length > 0) {
-        await prisma.invoiceLineItem.createMany({
-          data: logs.map(l => ({
+        let subtotal = 0;
+        const lineItems = logs.map(l => {
+          // 💡 Parsing 'time_spent' string (e.g. '1h 30m' or '45m') into decimal hours
+          let hoursLogged = 0;
+          const timeStr = String(l.time_spent || "0h");
+          const hMatch = timeStr.match(/(\d+)h/);
+          if (hMatch) hoursLogged += parseInt(hMatch[1], 10);
+          const mMatch = timeStr.match(/(\d+)m/);
+          if (mMatch) hoursLogged += parseInt(mMatch[1], 10) / 60;
+
+          // Default to 1 if no recognizable time found
+          if (hoursLogged === 0) hoursLogged = 1;
+
+          const lineTotal = hoursLogged * Number(hourly_rate);
+          subtotal += lineTotal;
+
+          return {
             invoice_id: invoice.id,
             ticket_ref: l.ticket?.ticket_no || "General",
             agent_name: l.agent?.full_name || "Unknown",
             date_logged: l.created_at,
-            hours: 1, // Default to 1 if parsing fails
+            hours: hoursLogged,
             rate: Number(hourly_rate),
-            total: Number(hourly_rate)
-          }))
+            total: lineTotal
+          };
+        });
+
+        await prisma.invoiceLineItem.createMany({
+          data: lineItems
+        });
+
+        // ✅ P1: Calculate Tax and Update Invoice Total
+        const gstPercent = 5; // Default for UAE or fetch from settings
+        const totalTax = subtotal * (gstPercent / 100);
+        const totalWithTax = subtotal + totalTax;
+
+        await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            gst_percentage: gstPercent,
+            total_tax: totalTax,
+            total_amout_with_tax: totalWithTax
+          }
         });
       }
 

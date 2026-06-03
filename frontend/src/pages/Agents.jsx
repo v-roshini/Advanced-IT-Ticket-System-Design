@@ -6,13 +6,14 @@ import axios from "axios";
 const BASE = process.env.REACT_APP_URL;
 
 export default function Agents() {
+  const [showPassword, setShowPassword] = useState(false);
   const [agents, setAgents] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({
-    full_name: "", email: "", phone: "", role: "agent", specialization: "Level 1 Support", availability: "Online"
+    full_name: "", email: "", phone: "", role: "agent", specialization: "Level 1 Support", availability: "Online", system_login: true, password: ""
   });
 
   const token = localStorage.getItem("token");
@@ -36,7 +37,8 @@ export default function Agents() {
 
   const openAddModal = () => {
     setEditId(null);
-    setForm({ full_name: "", email: "", phone: "", role: "agent", specialization: "Level 1 Support", availability: "Online" });
+    setForm({ full_name: "", email: "", phone: "", role: "agent", specialization: "Level 1 Support", availability: "Online", system_login: true, password: "" });
+    setShowPassword(false);
     setShowModal(true);
   };
 
@@ -56,8 +58,8 @@ export default function Agents() {
         await axios.put(`${BASE}/agents/${editId}`, form, { headers });
         alert("✅ Agent updated successfully!");
       } else {
-        const res = await axios.post(`${BASE}/agents/invite`, form, { headers });
-        alert(`✅ Agent invited successfully!\n\nTemporary Password: ${res.data.invitePassword}\n(Please copy this and send it securely)`);
+        await axios.post(`${BASE}/agents/invite`, form, { headers });
+        alert("✅ Agent added successfully!");
       }
       setShowModal(false);
       fetchAgents();
@@ -210,9 +212,22 @@ export default function Agents() {
               </div>
 
               {!editId && (
-                <div className="bg-blue-50 text-blue-800 text-xs p-3 rounded mt-2 border border-blue-100 flex items-start gap-2">
-                  <span>ℹ️</span>
-                  A temporary password will be auto-generated and securely provided to you upon inviting the agent.
+                <div className="group animate-in slide-in-from-top-2 duration-300">
+                  <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Password *</label>
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      placeholder="Enter custom password"
+                      required
+                      className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400 pr-12"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })} 
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-xs font-bold text-gray-400 hover:text-blue-700 select-none">
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </div>
               )}
 

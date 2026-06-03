@@ -2,10 +2,20 @@ const express = require("express");
 const router = express.Router();
 const prisma = require("../config/prisma");
 const { verifyToken } = require("../middleware/authMiddleware");
+const { checkPermission } = require("../middleware/permissionMiddleware");
 
-router.get("/", verifyToken, async (req, res) => {
+router.get("/", verifyToken, checkPermission('can_view_billing'), async (req, res) => {
   try {
+    let whereClause = {};
+
+    if (req.user.role === 'client') {
+        const customer = await prisma.customer.findUnique({ where: { portal_user_id: req.user.id } });
+        if (!customer) return res.status(403).json({ message: "Customer profile not found" });
+        whereClause = { billing: { customer_id: customer.id } };
+    }
+
     const invoices = await prisma.invoice.findMany({
+      where: whereClause,
       orderBy: { created_at: "desc" },
       include: {
         billing: {
@@ -21,7 +31,7 @@ router.get("/", verifyToken, async (req, res) => {
   }
 });
 
-router.post("/", verifyToken, async (req, res) => {
+router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (req, res) => {
   const { billing_id, invoice_number, gst_percentage } = req.body;
   
   try {
@@ -87,7 +97,7 @@ router.post("/", verifyToken, async (req, res) => {
   }
 });
 
-router.put("/:id/paid", verifyToken, async (req, res) => {
+router.put("/:id/paid", verifyToken, checkPermission('can_generate_invoice'), async (req, res) => {
   try {
     const { amount, method, notes } = req.body;
     const invoiceId = Number(req.params.id);
