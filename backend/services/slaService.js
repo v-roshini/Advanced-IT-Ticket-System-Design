@@ -21,15 +21,34 @@ async function processSLAEngine() {
 
     for (const ticket of activeTickets) {
       const createdAt = new Date(ticket.created_at);
-      let targetDeadline = ticket.sla_resolution_deadline || ticket.sla_response_deadline;
-      
-      if (!targetDeadline) continue;
+      let maxElapsedPercentage = 0;
+      let hasDeadline = false;
 
-      const totalSlaTimeMs = new Date(targetDeadline).getTime() - createdAt.getTime();
-      const elapsedSlaTimeMs = now.getTime() - createdAt.getTime() - (ticket.total_paused_mins * 60000 || 0);
-      
-      const elapsedPercentage = (elapsedSlaTimeMs / totalSlaTimeMs) * 100;
+      // 1. Response SLA
+      if (ticket.sla_response_deadline) {
+        hasDeadline = true;
+        const totalRespTimeMs = new Date(ticket.sla_response_deadline).getTime() - createdAt.getTime();
+        const elapsedRespTimeMs = now.getTime() - createdAt.getTime() - (ticket.total_paused_mins * 60000 || 0);
+        const respPercent = (elapsedRespTimeMs / totalRespTimeMs) * 100;
+        if (respPercent > maxElapsedPercentage) {
+          maxElapsedPercentage = respPercent;
+        }
+      }
 
+      // 2. Resolution SLA
+      if (ticket.sla_resolution_deadline) {
+        hasDeadline = true;
+        const totalResTimeMs = new Date(ticket.sla_resolution_deadline).getTime() - createdAt.getTime();
+        const elapsedResTimeMs = now.getTime() - createdAt.getTime() - (ticket.total_paused_mins * 60000 || 0);
+        const resPercent = (elapsedResTimeMs / totalResTimeMs) * 100;
+        if (resPercent > maxElapsedPercentage) {
+          maxElapsedPercentage = resPercent;
+        }
+      }
+
+      if (!hasDeadline) continue;
+
+      const elapsedPercentage = maxElapsedPercentage;
       let newSlaStatus = ticket.sla_status;
 
       if (elapsedPercentage >= 100) {

@@ -29,7 +29,9 @@ router.get("/", verifyToken, checkPermission('can_view_billing'), async (req, re
       orderBy: { created_at: "desc" },
       include: {
         customer: { select: { name: true, company: true } },
-        invoices: true,
+        invoices: {
+          include: { line_items: true }
+        },
       },
     });
     res.json(bills);
@@ -54,8 +56,23 @@ router.get("/unbilled/:customerId", verifyToken, async (req, res) => {
 });
 
 router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (req, res) => {
-  const { customer_id, hours_used, hourly_rate, total_amount, month, log_ids } = req.body;
+  const { 
+    customer_id, 
+    hours_used, 
+    hourly_rate, 
+    total_amount, 
+    month, 
+    log_ids, 
+    billing_type, 
+    base_amount, 
+    overage_amount, 
+    overage_hours, 
+    gst_percentage 
+  } = req.body;
+
   try {
+    const isAMC = billing_type === "amc";
+
     const bill = await prisma.billing.create({
       data: {
         customer_id:  Number(customer_id),
@@ -77,65 +94,123 @@ router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (re
         }
     });
 
-    if (log_ids && log_ids.length > 0) {
-      // Fetch logs for line item details
-      const logs = await prisma.workLog.findMany({
-        where: { id: { in: log_ids.map(id => Number(id)) } },
-        include: { ticket: true, agent: true }
-      });
+    if (isAMC) {
+      const amcLineItems = [];
+      const baseFeeVal = Number(base_amount) || 0;
+      const overageVal = Number(overage_amount) || 0;
+      const overageHrs = Number(overage_hours) || 0;
 
-      // Create Line Items
-      if (logs.length > 0) {
-        let subtotal = 0;
-        const lineItems = logs.map(l => {
-          // 💡 Parsing 'time_spent' string (e.g. '1h 30m' or '45m') into decimal hours
-          let hoursLogged = 0;
-          const timeStr = String(l.time_spent || "0h");
-          const hMatch = timeStr.match(/(\d+)h/);
-          if (hMatch) hoursLogged += parseInt(hMatch[1], 10);
-          const mMatch = timeStr.match(/(\d+)m/);
-          if (mMatch) hoursLogged += parseInt(mMatch[1], 10) / 60;
-
-          // Default to 1 if no recognizable time found
-          if (hoursLogged === 0) hoursLogged = 1;
-
-          const lineTotal = hoursLogged * Number(hourly_rate);
-          subtotal += lineTotal;
-
-          return {
-            invoice_id: invoice.id,
-            ticket_ref: l.ticket?.ticket_no || "General",
-            agent_name: l.agent?.full_name || "Unknown",
-            date_logged: l.created_at,
-            hours: hoursLogged,
-            rate: Number(hourly_rate),
-            total: lineTotal
-          };
-        });
-
-        await prisma.invoiceLineItem.createMany({
-          data: lineItems
-        });
-
-        // ✅ P1: Calculate Tax and Update Invoice Total
-        const gstPercent = 5; // Default for UAE or fetch from settings
-        const totalTax = subtotal * (gstPercent / 100);
-        const totalWithTax = subtotal + totalTax;
-
-        await prisma.invoice.update({
-          where: { id: invoice.id },
-          data: {
-            gst_percentage: gstPercent,
-            total_tax: totalTax,
-            total_amout_with_tax: totalWithTax
-          }
+      if (baseFeeVal > 0) {
+        amcLineItems.push({
+          invoice_id: invoice.id,
+          ticket_ref: "AMC Monthly Retainer Fee",
+          agent_name: "System",
+          date_logged: new Date(),
+          hours: 1,
+          rate: baseFeeVal,
+          total: baseFeeVal
         });
       }
 
-      await prisma.workLog.updateMany({
-        where: { id: { in: log_ids.map(id => Number(id)) } },
-        data: { is_billed: true, billing_id: bill.id }
+      if (overageVal > 0) {
+        amcLineItems.push({
+          invoice_id: invoice.id,
+          ticket_ref: `AMC Support Overage (${overageHrs} hrs)`,
+          agent_name: "System",
+          date_logged: new Date(),
+          hours: overageHrs,
+          rate: Number(hourly_rate) || 0,
+          total: overageVal
+        });
+      }
+
+      if (amcLineItems.length > 0) {
+        await prisma.invoiceLineItem.createMany({
+          data: amcLineItems
+        });
+      }
+
+      if (log_ids && log_ids.length > 0) {
+        await prisma.workLog.updateMany({
+          where: { id: { in: log_ids.map(id => Number(id)) } },
+          data: { is_billed: true, billing_id: bill.id }
+        });
+      }
+
+      const gstPercent = gst_percentage !== undefined ? Number(gst_percentage) : 5;
+      const subtotal = baseFeeVal + overageVal;
+      const totalTax = subtotal * (gstPercent / 100);
+      const totalWithTax = subtotal + totalTax;
+
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          gst_percentage: gstPercent,
+          total_tax: totalTax,
+          total_amout_with_tax: totalWithTax
+        }
       });
+    } else {
+      if (log_ids && log_ids.length > 0) {
+        // Fetch logs for line item details
+        const logs = await prisma.workLog.findMany({
+          where: { id: { in: log_ids.map(id => Number(id)) } },
+          include: { ticket: true, agent: true }
+        });
+
+        // Create Line Items
+        if (logs.length > 0) {
+          let subtotal = 0;
+          const lineItems = logs.map(l => {
+            // 💡 Parsing 'time_spent' string (e.g. '1h 30m' or '45m') into decimal hours
+            let hoursLogged = 0;
+            const timeStr = String(l.time_spent || "0h");
+            const hMatch = timeStr.match(/(\d+)h/);
+            if (hMatch) hoursLogged += parseInt(hMatch[1], 10);
+            const mMatch = timeStr.match(/(\d+)m/);
+            if (mMatch) hoursLogged += parseInt(mMatch[1], 10) / 60;
+
+            // Default to 1 if no recognizable time found
+            if (hoursLogged === 0) hoursLogged = 1;
+
+            const lineTotal = hoursLogged * Number(hourly_rate);
+            subtotal += lineTotal;
+
+            return {
+              invoice_id: invoice.id,
+              ticket_ref: l.ticket?.ticket_no || "General",
+              agent_name: l.agent?.full_name || "Unknown",
+              date_logged: l.created_at,
+              hours: hoursLogged,
+              rate: Number(hourly_rate),
+              total: lineTotal
+            };
+          });
+
+          await prisma.invoiceLineItem.createMany({
+            data: lineItems
+          });
+
+          // ✅ P1: Calculate Tax and Update Invoice Total
+          const gstPercent = gst_percentage !== undefined ? Number(gst_percentage) : 18;
+          const totalTax = subtotal * (gstPercent / 100);
+          const totalWithTax = subtotal + totalTax;
+
+          await prisma.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              gst_percentage: gstPercent,
+              total_tax: totalTax,
+              total_amout_with_tax: totalWithTax
+            }
+          });
+        }
+
+        await prisma.workLog.updateMany({
+          where: { id: { in: log_ids.map(id => Number(id)) } },
+          data: { is_billed: true, billing_id: bill.id }
+        });
+      }
     }
 
     res.status(201).json({ message: "Bill and Itemized Invoice created!", bill, invoice });

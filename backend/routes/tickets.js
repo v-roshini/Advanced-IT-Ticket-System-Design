@@ -20,7 +20,7 @@ async function getCustomerId(userId) {
 // GET all tickets
 router.get("/", verifyToken, async (req, res) => {
     try {
-        // Role-based access: admins & agents see all, clients only see their own
+        // Role-based access: admins see all, clients see their own, agents see their assigned
         // No DB permission lookup needed here — role itself defines access
 
         const { customer, agent } = req.query;
@@ -31,6 +31,10 @@ router.get("/", verifyToken, async (req, res) => {
             const custId = await getCustomerId(req.user.id);
             if (!custId) return res.status(403).json({ message: "Customer profile not found" });
             whereClause.customer_id = custId;
+        } else if (req.user.role === 'agent') {
+            // Agents can ONLY see their assigned tickets
+            whereClause.agent_id = req.user.id;
+            if (customer) whereClause.customer_id = Number(customer);
         } else {
             if (customer) whereClause.customer_id = Number(customer);
             if (agent) whereClause.agent_id = Number(agent);
@@ -69,6 +73,11 @@ router.get("/:id", verifyToken, async (req, res) => {
             },
         });
         if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+        // Security check for agents
+        if (req.user.role === 'agent' && ticket.agent_id !== req.user.id) {
+            return res.status(403).json({ message: "You do not have permission to view this ticket" });
+        }
 
         // Security check for clients
         if (req.user.role === 'client') {
@@ -208,6 +217,11 @@ router.put("/:id", verifyToken, async (req, res) => {
     try {
         const oldTicket = await prisma.ticket.findUnique({ where: { id: Number(req.params.id) }, include: { customer_ref: true } });
         if (!oldTicket) return res.status(404).json({ message: "Ticket not found" });
+
+        // Security check for agents
+        if (req.user.role === 'agent' && oldTicket.agent_id !== req.user.id) {
+            return res.status(403).json({ message: "You do not have permission to update this ticket" });
+        }
 
         // --- P1 Permissions Logic ---
         if (req.user.role === "client") {
@@ -379,6 +393,14 @@ router.put("/:id", verifyToken, async (req, res) => {
 // DELETE ticket
 router.delete("/:id", verifyToken, checkPermission('can_delete_ticket'), async (req, res) => {
     try {
+        const ticket = await prisma.ticket.findUnique({ where: { id: Number(req.params.id) } });
+        if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+        // Security check for agents
+        if (req.user.role === 'agent' && ticket.agent_id !== req.user.id) {
+            return res.status(403).json({ message: "You do not have permission to delete this ticket" });
+        }
+
         await prisma.ticket.delete({ where: { id: Number(req.params.id) } });
         res.json({ message: "Ticket deleted!" });
     } catch (err) {
@@ -404,9 +426,26 @@ router.post("/:id/comments", verifyToken, checkPermission('can_add_comment'), as
     }
 
     try {
+        const ticketId = Number(req.params.id);
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+        // Security check for agents
+        if (req.user.role === 'agent' && ticket.agent_id !== req.user.id) {
+            return res.status(403).json({ message: "You do not have permission to comment on this ticket" });
+        }
+
+        // Security check for clients
+        if (req.user.role === 'client') {
+            const custId = await getCustomerId(req.user.id);
+            if (ticket.customer_id !== custId) {
+                return res.status(403).json({ message: "You do not have permission to comment on this ticket" });
+            }
+        }
+
         const comment = await prisma.ticketComment.create({
             data: {
-                ticket_id: Number(req.params.id),
+                ticket_id: ticketId,
                 user_id: req.user.id,
                 message,
                 is_internal: is_internal || false,
@@ -431,7 +470,7 @@ router.post("/:id/comments", verifyToken, checkPermission('can_add_comment'), as
                 `Reply on Ticket ${comment.ticket.ticket_no}`,
                 `/tickets/${comment.ticket.id}`
             );
-        } else if (!is_internal) {
+        } else if (!is_internal && comment.ticket.customer_id) {
             // Agent replied, notify the customer
             const customer = await prisma.customer.findUnique({
                 where: { id: comment.ticket.customer_id }
@@ -472,6 +511,21 @@ router.post("/:id/attachments", verifyToken, upload.array("attachments", 5), asy
 
     try {
         const ticketId = Number(req.params.id);
+        const ticket = await prisma.ticket.findUnique({ where: { id: ticketId } });
+        if (!ticket) return res.status(404).json({ message: "Ticket not found" });
+
+        // Security check for agents
+        if (req.user.role === 'agent' && ticket.agent_id !== req.user.id) {
+            return res.status(403).json({ message: "You do not have permission to upload attachments to this ticket" });
+        }
+
+        // Security check for clients
+        if (req.user.role === 'client') {
+            const custId = await getCustomerId(req.user.id);
+            if (ticket.customer_id !== custId) {
+                return res.status(403).json({ message: "You do not have permission to upload attachments to this ticket" });
+            }
+        }
         
         const attachments = await prisma.ticketAttachment.createMany({
             data: req.files.map(file => ({
@@ -506,6 +560,22 @@ router.post("/bulk-update", verifyToken, async (req, res) => {
     if (req.user.role === 'client') return res.status(403).json({ message: "Forbidden" });
     if (agent_id !== undefined && req.user.role !== 'admin') {
         return res.status(403).json({ message: "Only admins can assign agents" });
+    }
+
+    if (req.user.role === 'agent') {
+        try {
+            const count = await prisma.ticket.count({
+                where: {
+                    id: { in: ticketIds.map(id => Number(id)) },
+                    agent_id: req.user.id
+                }
+            });
+            if (count !== ticketIds.length) {
+                return res.status(403).json({ message: "You do not have permission to update some of the selected tickets" });
+            }
+        } catch (err) {
+            return res.status(500).json({ message: "Error verifying permissions" });
+        }
     }
 
     try {

@@ -67,7 +67,7 @@ async function processRenewalAlerts() {
         const existingTicket = await prisma.ticket.findFirst({
           where: {
             issue_title: `URGENT: ${r.asset_name} renewal overdue for ${r.customer?.name}`,
-            status: { not: "Closed" },
+            created_at: { gte: r.expiry_date }
           },
         });
 

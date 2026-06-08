@@ -72,7 +72,7 @@ export default function CustomerDashboard() {
   const openCount      = tickets.filter(t => t.status === "Open").length;
   const inProgCount    = tickets.filter(t => t.status === "In_Progress").length;
   const resolvedCount  = tickets.filter(t => t.status === "Resolved" && new Date(t.updated_at || t.created_at) >= thisMonthStart).length;
-  const pendingBills   = billing.filter(b => !b.invoices?.[0]?.is_paid);
+  const pendingBills   = billing.filter(b => b.invoices?.[0]?.status !== "Paid");
   const pendingTotal   = pendingBills.reduce((s, b) => s + (b.total_amount || 0), 0);
 
   // AMC

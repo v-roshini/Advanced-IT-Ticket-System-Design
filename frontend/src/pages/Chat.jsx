@@ -1,7 +1,28 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { FiSend, FiUser, FiMessageCircle } from "react-icons/fi";
+import { IoCheckmarkDone } from "react-icons/io5";
 import { io } from "socket.io-client";
+
+const formatMessageTime = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  const msgDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  if (msgDate.getTime() === today.getTime()) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  } else if (msgDate.getTime() === yesterday.getTime()) {
+    return "Yesterday";
+  } else {
+    return date.toLocaleDateString([], { day: 'numeric', month: 'numeric', year: '2-digit' });
+  }
+};
 
 export default function Chat() {
   const [contacts, setContacts] = useState([]);
@@ -18,6 +39,11 @@ export default function Chat() {
   const token = localStorage.getItem("token");
   const chatEndRef = useRef(null);
   const socketRef = useRef(null);
+  const activeContactRef = useRef(null);
+
+  useEffect(() => {
+    activeContactRef.current = activeContact;
+  }, [activeContact]);
 
   useEffect(() => {
     fetchContacts();
@@ -31,17 +57,28 @@ export default function Chat() {
     }
 
     socketRef.current.on("chat_message", (msg) => {
-      setMessages(prev => {
-        // Find if this new message belongs to our currently open window
-        if (prev.some(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
+      const currentActive = activeContactRef.current;
+      if (currentActive && (msg.sender_id === currentActive.id || msg.receiver_id === currentActive.id)) {
+        // Fetch to update read receipt state
+        fetchMessages(currentActive.id);
+      } else {
+        fetchContacts();
+      }
       scrollToBottom();
+    });
+
+    socketRef.current.on("messages_read", ({ reader_id }) => {
+      const currentActive = activeContactRef.current;
+      if (currentActive && currentActive.id === reader_id) {
+        setMessages(prev => prev.map(m => m.receiver_id === reader_id ? { ...m, is_read: true } : m));
+      }
+      fetchContacts();
     });
 
     return () => {
       if (socketRef.current) {
         socketRef.current.off("chat_message");
+        socketRef.current.off("messages_read");
         socketRef.current.disconnect();
       }
     };
@@ -79,6 +116,8 @@ export default function Chat() {
         headers: { Authorization: `Bearer ${token}` }
       });
       setMessages(res.data);
+      // Synchronize with backend unread counts
+      fetchContacts();
     } catch (err) {
       console.error(err);
     } finally {
@@ -112,8 +151,7 @@ export default function Chat() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setInput("");
-      // Message is appended via socket, or we could fetchMessages(activeContact.id)
-      // fetchMessages(activeContact.id);
+      fetchContacts();
     } catch (err) {
       alert("Failed to send message");
     }
@@ -135,16 +173,41 @@ export default function Chat() {
             contacts.map(c => (
               <button
                 key={c.id}
-                onClick={() => { setShowGlobal(false); setActiveContact(c); }}
-                className={`w-full text-left p-4 border-b hover:bg-gray-50 flex items-center gap-3 transition ${activeContact?.id === c.id ? "bg-blue-50 border-l-4 border-l-blue-600" : ""}`}
+                onClick={() => {
+                  setShowGlobal(false);
+                  setActiveContact(c);
+                  // Instantly clear unread count in UI
+                  setContacts(prev => prev.map(contact => contact.id === c.id ? { ...contact, unreadCount: 0 } : contact));
+                }}
+                className={`w-full text-left p-4 border-b hover:bg-gray-50 flex items-center justify-between transition ${activeContact?.id === c.id ? "bg-blue-50 border-l-4 border-l-blue-600" : ""}`}
               >
-                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold relative">
-                  {c.full_name?.charAt(0)}
-                  {c.role === "admin" && <span className="absolute -bottom-1 -right-1 bg-red-500 w-3 h-3 rounded-full border-2 border-white" title="Admin"></span>}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold relative shrink-0">
+                    {c.full_name?.charAt(0)}
+                    {c.role === "admin" && <span className="absolute -bottom-1 -right-1 bg-red-500 w-3 h-3 rounded-full border-2 border-white" title="Admin"></span>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-gray-800 text-sm truncate">{c.full_name}</p>
+                    <p className="text-xs text-gray-500 truncate mt-0.5 font-normal">
+                      {c.lastMessage ? c.lastMessage.message : <span className="text-blue-600 capitalize font-medium">{c.role}</span>}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-800 text-sm">{c.full_name}</p>
-                  <p className="text-xs text-blue-600 capitalize">{c.role}</p>
+                <div className="flex flex-col items-end justify-between shrink-0 ml-2 h-10">
+                  {c.lastMessage ? (
+                    <span className={`text-[10px] ${c.unreadCount > 0 && activeContact?.id !== c.id ? "text-blue-900 font-semibold" : "text-gray-400"}`}>
+                      {formatMessageTime(c.lastMessage.created_at)}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-gray-400 capitalize">{c.role}</span>
+                  )}
+                  {c.unreadCount > 0 && activeContact?.id !== c.id ? (
+                    <span className="bg-blue-900 text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-normal shadow-sm">
+                      {c.unreadCount}
+                    </span>
+                  ) : (
+                    <div className="h-[14px]"></div>
+                  )}
                 </div>
               </button>
             ))
@@ -224,8 +287,15 @@ export default function Chat() {
                     <div key={m.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[70%] p-3 rounded-2xl shadow-sm text-sm whitespace-pre-wrap ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white text-gray-800 border rounded-tl-none'}`}>
                         {m.message}
-                        <div className={`text-[10px] mt-1 text-right ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
-                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${isMe ? 'text-blue-200' : 'text-gray-400'}`}>
+                          <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                          {isMe && (
+                            m.is_read ? (
+                              <IoCheckmarkDone className="text-white text-[15px] ml-1 shrink-0 drop-shadow-sm font-bold" title="Read" />
+                            ) : (
+                              <IoCheckmarkDone className="text-blue-200/80 text-[15px] ml-1 shrink-0 drop-shadow-sm" title="Sent" />
+                            )
+                          )}
                         </div>
                       </div>
                     </div>

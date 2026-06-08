@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiPlus, FiCalendar, FiList, FiSearch, FiArrowRight, FiCheckCircle, FiAlertCircle, FiClock, FiTrash2, FiEdit2, FiRepeat } from "react-icons/fi";
 import axios from "axios";
@@ -6,13 +6,13 @@ import axios from "axios";
 const BASE = process.env.REACT_APP_URL;
 
 const categoryIcons = {
-  domain: "ðŸŒ",
-  hosting: "â˜ï¸",
-  email: "ðŸ“§",
-  ssl: "ðŸ”’",
-  software: "ðŸ’¿",
-  firewall: "ðŸ›¡ï¸",
-  amc: "ðŸ› ï¸",
+  domain: "🌐",
+  hosting: "☁️",
+  email: "📧",
+  ssl: "🔒",
+  software: "💿",
+  firewall: "🛡️",
+  amc: "🛠️",
 };
 
 const statusColors = {
@@ -93,10 +93,10 @@ export default function Renewals() {
     try {
       if (editId) {
         await axios.put(`${BASE}/renewals/${editId}`, formattedForm, { headers });
-        alert("âœ… Renewal updated!");
+        alert("✅ Renewal updated!");
       } else {
         await axios.post(`${BASE}/renewals`, formattedForm, { headers });
-        alert("âœ… Renewal added!");
+        alert("✅ Renewal added!");
       }
       setShowModal(false);
       setEditId(null);
@@ -133,7 +133,7 @@ export default function Renewals() {
     if (!newDate) return;
     try {
       await axios.post(`${BASE}/renewals/${r.id}/renew`, { new_expiry_date: newDate, new_cost: r.cost }, { headers });
-      alert("âœ… Renewed successfully!");
+      alert("✅ Renewed successfully!");
       fetchData();
     } catch (err) { alert("Renewal failed"); }
   };

@@ -186,6 +186,19 @@ router.delete("/:id", verifyToken, async (req, res) => {
     }
 });
 
+// Helper to map asset types to RenewalCategory enum values
+function mapAssetTypeToCategory(type) {
+    const t = String(type || "").toLowerCase();
+    if (t.includes("domain")) return "domain";
+    if (t.includes("hosting")) return "hosting";
+    if (t.includes("ssl")) return "ssl";
+    if (t.includes("software") || t.includes("license")) return "software";
+    if (t.includes("email") || t.includes("mail")) return "email";
+    if (t.includes("firewall")) return "firewall";
+    if (t.includes("amc")) return "amc";
+    return "software"; // default fallback
+}
+
 // Add Renewal Asset
 router.post("/:id/assets", verifyToken, async (req, res) => {
     const { asset_name, asset_type, purchase_date, expiry_date, cost, supplier, notes } = req.body;
@@ -202,7 +215,29 @@ router.post("/:id/assets", verifyToken, async (req, res) => {
                 notes
             }
         });
-        res.status(201).json({ message: "Asset added successfully", asset });
+
+        // Sync: Auto-create corresponding Renewal record
+        const category = mapAssetTypeToCategory(asset_type || "Other");
+        await prisma.renewal.create({
+            data: {
+                customer_id: Number(req.params.id),
+                category: category,
+                asset_name: asset_name,
+                vendor: supplier || null,
+                purchase_date: purchase_date ? new Date(purchase_date) : null,
+                expiry_date: new Date(expiry_date),
+                cost: cost ? parseFloat(cost) : null,
+                currency: "AED",
+                auto_renew: false,
+                remind_one_week: true,
+                remind_one_month: true,
+                status: "active",
+                notes: notes || null,
+                renewal_asset_id: asset.id
+            }
+        });
+
+        res.status(201).json({ message: "Asset added successfully and synced with renewals", asset });
     } catch (err) {
         console.error("Asset Add Error:", err);
         res.status(500).json({ message: "Error adding asset" });
@@ -212,10 +247,17 @@ router.post("/:id/assets", verifyToken, async (req, res) => {
 // Delete Renewal Asset
 router.delete("/assets/:assetId", verifyToken, async (req, res) => {
     try {
-        await prisma.renewalAsset.delete({ where: { id: Number(req.params.assetId) } });
-        res.json({ message: "Asset deleted!" });
+        const assetId = Number(req.params.assetId);
+        
+        // Fail-safe: Delete linked renewal first to ensure clean state
+        await prisma.renewal.deleteMany({
+            where: { renewal_asset_id: assetId }
+        });
+
+        await prisma.renewalAsset.delete({ where: { id: assetId } });
+        res.json({ message: "Asset and linked renewal deleted!" });
     } catch (err) {
-        console.error(err);
+        console.error("Asset Delete Error:", err);
         res.status(500).json({ message: "Error deleting asset" });
     }
 });

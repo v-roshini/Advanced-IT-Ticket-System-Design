@@ -188,6 +188,7 @@ model ContractAMC {
   priority_sla      String?
   hours_used        Float             @default(0)
   extra_hour_rate   Float?            @default(0)
+  monthly_base_fee  Float?            @default(0)
   rollover_hours    Boolean           @default(false)
   scope_of_services String?           @db.Text
   attachment_url    String?
@@ -292,6 +293,7 @@ model RenewalAsset {
   notes         String?   @db.Text
   created_at    DateTime  @default(now())
   customer      Customer  @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  renewals      Renewal[]
 
   @@index([customer_id], map: "renewal_assets_customer_id_idx")
   @@map("renewal_assets")
@@ -333,10 +335,13 @@ model Renewal {
   assigned_agent    User?           @relation("AssignedRenewals", fields: [assigned_agent_id], references: [id])
   created_by        User?           @relation("CreatedRenewals", fields: [created_by_id], references: [id])
   customer          Customer        @relation(fields: [customer_id], references: [id], onDelete: Cascade)
+  renewal_asset_id  Int?            @unique
+  renewal_asset     RenewalAsset?   @relation(fields: [renewal_asset_id], references: [id], onDelete: Cascade)
 
   @@index([customer_id])
   @@index([assigned_agent_id])
   @@index([created_by_id])
+  @@index([renewal_asset_id])
   @@map("renewals")
 }
 

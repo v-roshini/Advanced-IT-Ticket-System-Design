@@ -12,6 +12,17 @@ async function getCustomerId(userId) {
     return customer?.id;
 }
 
+// Helper to map RenewalCategory to RenewalAsset type
+function mapCategoryToAssetType(cat) {
+    const c = String(cat || "").toLowerCase();
+    if (c === "domain") return "Domain";
+    if (c === "hosting") return "Hosting";
+    if (c === "ssl") return "SSL Certificate";
+    if (c === "software") return "Software License";
+    return "Other";
+}
+
+
 // GET all renewals (filterable by category, customer, status, date range)
 router.get("/", verifyToken, async (req, res) => {
   const { category, customerId, status, start_date, end_date } = req.query;
@@ -150,6 +161,21 @@ router.post("/", verifyToken, async (req, res) => {
   } = req.body;
 
   try {
+    // Sync: Create corresponding RenewalAsset first
+    const assetType = mapCategoryToAssetType(category);
+    const asset = await prisma.renewalAsset.create({
+      data: {
+        customer_id: Number(customer_id),
+        asset_name,
+        asset_type: assetType,
+        purchase_date: purchase_date ? new Date(purchase_date) : null,
+        expiry_date: new Date(expiry_date),
+        cost: cost ? parseFloat(cost) : null,
+        supplier: vendor || null,
+        notes: notes || null
+      }
+    });
+
     const renewal = await prisma.renewal.create({
       data: {
         customer_id: Number(customer_id),
@@ -159,13 +185,15 @@ router.post("/", verifyToken, async (req, res) => {
         purchase_date: purchase_date ? new Date(purchase_date) : null,
         expiry_date: new Date(expiry_date),
         cost: cost ? parseFloat(cost) : null,
-        currency: currency || "INR",
+        currency: currency || "AED",
         auto_renew: !!auto_renew,
         remind_one_week: remind_one_week !== undefined ? !!remind_one_week : true,
         remind_one_month: remind_one_month !== undefined ? !!remind_one_month : true,
+        status: "active",
         notes,
         assigned_agent_id: assigned_agent_id ? Number(assigned_agent_id) : null,
         created_by_id: req.user.id,
+        renewal_asset_id: asset.id
       },
     });
     res.status(201).json(renewal);
@@ -199,10 +227,31 @@ router.put("/:id", verifyToken, async (req, res) => {
   delete updateData.updated_at;
 
   try {
+    const oldRenewal = await prisma.renewal.findUnique({ where: { id: Number(id) } });
+    if (!oldRenewal) return res.status(404).json({ message: "Renewal not found" });
+
     const renewal = await prisma.renewal.update({
       where: { id: Number(id) },
       data: updateData,
     });
+
+    // Sync: Update corresponding RenewalAsset if linked
+    if (renewal.renewal_asset_id) {
+      const assetType = mapCategoryToAssetType(renewal.category);
+      await prisma.renewalAsset.update({
+        where: { id: renewal.renewal_asset_id },
+        data: {
+          asset_name: renewal.asset_name,
+          asset_type: assetType,
+          purchase_date: renewal.purchase_date,
+          expiry_date: renewal.expiry_date,
+          cost: renewal.cost,
+          supplier: renewal.vendor,
+          notes: renewal.notes
+        }
+      });
+    }
+
     res.json(renewal);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -213,8 +262,20 @@ router.put("/:id", verifyToken, async (req, res) => {
 router.delete("/:id", verifyToken, async (req, res) => {
   const { id } = req.params;
   try {
+    const oldRenewal = await prisma.renewal.findUnique({ where: { id: Number(id) } });
+    if (!oldRenewal) return res.status(404).json({ message: "Renewal not found" });
+
+    // 1. Delete the Renewal record first
     await prisma.renewal.delete({ where: { id: Number(id) } });
-    res.json({ message: "Renewal record deleted successfully" });
+
+    // 2. Then delete the corresponding RenewalAsset if linked
+    if (oldRenewal.renewal_asset_id) {
+      await prisma.renewalAsset.delete({
+        where: { id: oldRenewal.renewal_asset_id }
+      }).catch(() => {}); // ignore if already deleted
+    }
+
+    res.json({ message: "Renewal record and linked asset deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -239,6 +300,17 @@ router.post("/:id/renew", verifyToken, async (req, res) => {
         updated_at: new Date(),
       },
     });
+
+    // Sync: Update the linked RenewalAsset expiry and cost
+    if (updated.renewal_asset_id) {
+      await prisma.renewalAsset.update({
+        where: { id: updated.renewal_asset_id },
+        data: {
+          expiry_date: new Date(new_expiry_date),
+          cost: new_cost ? parseFloat(new_cost) : oldRenewal.cost
+        }
+      });
+    }
 
     // Instructions: Create an invoice if possible.
     // Let's create an automatic bill and maybe an invoice if appropriate.

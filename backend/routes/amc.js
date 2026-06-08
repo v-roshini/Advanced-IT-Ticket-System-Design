@@ -46,7 +46,7 @@ router.get("/", verifyToken, async (req, res) => {
 
 // POST create contract
 router.post("/", verifyToken, async (req, res) => {
-    const { customer_id, company_name, start_date, end_date, monthly_hours, priority_sla, extra_hour_rate, rollover_hours, scope_of_services } = req.body;
+    const { customer_id, company_name, start_date, end_date, monthly_hours, priority_sla, extra_hour_rate, monthly_base_fee, rollover_hours, scope_of_services } = req.body;
 
     if (!customer_id || !start_date || !end_date)
         return res.status(400).json({ message: "Customer, start date and end date are required" });
@@ -84,12 +84,47 @@ router.post("/", verifyToken, async (req, res) => {
                 priority_sla: priority_sla || null,
                 hours_used: 0,
                 extra_hour_rate: Number(extra_hour_rate) || 0,
+                monthly_base_fee: Number(monthly_base_fee) || 0,
                 rollover_hours: Boolean(rollover_hours),
                 scope_of_services: scope_of_services || null
             },
         });
+
+        // 1. Update customer type to AMC for data consistency
+        await prisma.customer.update({
+            where: { id: Number(customer_id) },
+            data: { type: "AMC" }
+        });
+
+        // 2. Fetch and calculate hours from any existing work logs in this contract period
+        const logs = await prisma.workLog.findMany({
+            where: {
+                ticket: { customer_id: Number(customer_id) },
+                created_at: {
+                    gte: parsedStart,
+                    lte: parsedEnd
+                }
+            }
+        });
+
+        let totalCalculatedHours = 0;
+        logs.forEach(l => {
+            const timeStr = String(l.time_spent || "0h");
+            const hMatch = timeStr.match(/(\d+)h/);
+            if (hMatch) totalCalculatedHours += parseInt(hMatch[1], 10);
+            const mMatch = timeStr.match(/(\d+)m/);
+            if (mMatch) totalCalculatedHours += parseInt(mMatch[1], 10) / 60;
+        });
+
+        // 3. Save contract with updated hours and fetch customer info
+        const finalContract = await prisma.contractAMC.update({
+            where: { id: contract.id },
+            data: { hours_used: Number(totalCalculatedHours.toFixed(2)) },
+            include: { customer: { select: { id: true, name: true, company: true, portal_user_id: true } } }
+        });
+
         console.log("✅ AMC Contract added successfully!");
-        res.status(201).json({ message: "Contract added!", contract });
+        res.status(201).json({ message: "Contract added!", contract: finalContract });
     } catch (err) {
         console.error("❌ AMC POST Error:", err);
         res.status(500).json({ message: "Database error: " + err.message });

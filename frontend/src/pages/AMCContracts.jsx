@@ -18,6 +18,7 @@ export default function AMCContracts() {
     monthly_hours: 10,
     priority_sla: "",
     extra_hour_rate: 0,
+    monthly_base_fee: 0,
     rollover_hours: false,
     scope_of_services: "",
   });
@@ -71,6 +72,7 @@ export default function AMCContracts() {
         monthly_hours: form.monthly_hours,
         priority_sla: form.priority_sla,
         extra_hour_rate: form.extra_hour_rate,
+        monthly_base_fee: form.monthly_base_fee,
         rollover_hours: form.rollover_hours,
         scope_of_services: form.scope_of_services
       }, { headers });
@@ -93,6 +95,7 @@ export default function AMCContracts() {
       monthly_hours: 10,
       priority_sla: "",
       extra_hour_rate: 0,
+      monthly_base_fee: 0,
       rollover_hours: false,
       scope_of_services: "",
     });
@@ -276,9 +279,15 @@ export default function AMCContracts() {
 
                 {/* Extras Footer */}
                 <div className="flex justify-between items-center text-xs pt-3 border-t">
-                  <div className="text-gray-500 flex flex-col gap-0.5">
-                    <span className="font-medium text-[10px] uppercase">Overage Rate</span>
-                    <span className="font-bold text-gray-700">AED {c.extra_hour_rate || 0}/hr</span>
+                  <div className="text-gray-500 flex gap-4">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium text-[10px] uppercase">Base Fee</span>
+                      <span className="font-bold text-gray-700">AED {c.monthly_base_fee || 0}/mo</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium text-[10px] uppercase">Overage Rate</span>
+                      <span className="font-bold text-gray-700">AED {c.extra_hour_rate || 0}/hr</span>
+                    </div>
                   </div>
                   
                   <div className="flex items-center gap-3">
@@ -401,14 +410,18 @@ export default function AMCContracts() {
               </div>
 
               {/* Extra Fields */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1 block">Base Fee (AED)</label>
+                  <input type="number" min="0" className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400" placeholder="e.g. 1500" value={form.monthly_base_fee} onChange={(e) => setForm({ ...form, monthly_base_fee: parseFloat(e.target.value) || 0 })} />
+                </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1 block">Extra Hour Rate (AED)</label>
-                  <input type="number" min="0" className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400" placeholder="e.g. 1500" value={form.extra_hour_rate} onChange={(e) => setForm({ ...form, extra_hour_rate: parseFloat(e.target.value) || 0 })} />
+                  <input type="number" min="0" className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400" placeholder="e.g. 150" value={form.extra_hour_rate} onChange={(e) => setForm({ ...form, extra_hour_rate: parseFloat(e.target.value) || 0 })} />
                 </div>
                 <div className="flex items-center gap-2 mt-6">
                   <input type="checkbox" id="rollover" className="w-4 h-4 text-blue-600" checked={form.rollover_hours} onChange={(e) => setForm({ ...form, rollover_hours: e.target.checked })} />
-                  <label htmlFor="rollover" className="text-sm font-medium text-gray-700 whitespace-nowrap">Allow Unused Rollover Hours</label>
+                  <label htmlFor="rollover" className="text-sm font-medium text-gray-700 whitespace-nowrap">Allow Rollover Hours</label>
                 </div>
               </div>
 

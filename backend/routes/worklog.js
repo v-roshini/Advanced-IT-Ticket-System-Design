@@ -23,6 +23,118 @@ router.get("/", verifyToken, async (req, res) => {
 
 const { sendNotification, notifyAdmins } = require("../services/notificationService");
 
+// Helper to get customer ID for a ticket
+async function getCustomerIdForTicket(ticketId) {
+  if (!ticketId) return null;
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: Number(ticketId) },
+    select: { customer_id: true }
+  });
+  return ticket?.customer_id;
+}
+
+// Robust helper to parse various time spent formats into decimal hours
+function parseTimeSpentToHours(timeStr) {
+  if (!timeStr) return 0;
+  const s = String(timeStr).trim().toLowerCase();
+  
+  // Check for pure decimal number (e.g. "1.5" or "2")
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    return parseFloat(s);
+  }
+  
+  let totalHours = 0;
+  
+  // Match hours: "1.5h", "1h", "1.5 hours", "1.5 hr"
+  const hMatch = s.match(/(\d+(\.\d+)?)\s*(h|hour|hr)/);
+  if (hMatch) {
+    totalHours += parseFloat(hMatch[1]);
+  }
+  
+  // Match minutes: "30m", "30 mins", "30 minutes"
+  const mMatch = s.match(/(\d+)\s*(m|min)/);
+  if (mMatch) {
+    totalHours += parseInt(mMatch[1], 10) / 60;
+  }
+  
+  // Fallback: minutes words
+  if (!hMatch && !mMatch) {
+    const fallbackMin = s.match(/(\d+)\s*minutes?/);
+    if (fallbackMin) {
+      totalHours += parseInt(fallbackMin[1], 10) / 60;
+    }
+  }
+  
+  return totalHours;
+}
+
+// Helper to recalculate hours used for all AMC contracts of a customer
+async function recalculateAMCHoursForCustomer(customerId) {
+  if (!customerId) return;
+
+  try {
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId }
+    });
+
+    if (!customer) return;
+
+    // Find all AMC contracts for this customer
+    const contracts = await prisma.contractAMC.findMany({
+      where: { customer_id: customer.id }
+    });
+
+    for (const contract of contracts) {
+      // Fetch all UNBILLED work logs for this customer within the contract's date range
+      const logs = await prisma.workLog.findMany({
+        where: {
+          ticket: { customer_id: customer.id },
+          is_billed: false,
+          created_at: {
+            gte: contract.start_date,
+            lte: contract.end_date
+          }
+        }
+      });
+
+      let totalCalculatedHours = 0;
+      logs.forEach(l => {
+        totalCalculatedHours += parseTimeSpentToHours(l.time_spent);
+      });
+
+      const previousHoursUsed = contract.hours_used;
+      const newHoursUsed = Number(totalCalculatedHours.toFixed(2));
+
+      // Update the contract
+      await prisma.contractAMC.update({
+        where: { id: contract.id },
+        data: { hours_used: newHoursUsed }
+      });
+
+      // 🔔 Overage Alerts (80% and 100%)
+      const limit = contract.monthly_hours;
+      const prevPercent = (previousHoursUsed / limit) * 100;
+      const newPercent = (newHoursUsed / limit) * 100;
+
+      if (newPercent >= 100 && prevPercent < 100) {
+        const msg = `Customer ${customer.name} has exceeded their AMC monthly hours (${limit}h).`;
+        await notifyAdmins("amc_limit", "🚨 AMC LIMIT REACHED", msg, `/amc`);
+        if (customer.portal_user_id) {
+          await sendNotification(customer.portal_user_id, "amc_limit", "⚖️ Service Limit Reached", "You have utilized 100% of your monthly AMC hours. Further work will be billed at extra rates.", `/amc`);
+        }
+      } else if (newPercent >= 80 && prevPercent < 80) {
+        const msg = `Customer ${customer.name} has utilized 80% of their AMC monthly hours.`;
+        await notifyAdmins("amc_warning", "⚠️ AMC Usage Warning", msg, `/amc`);
+        if (customer.portal_user_id) {
+          await sendNotification(customer.portal_user_id, "amc_warning", "⚖️ Service Usage Alert", "You have utilized 80% of your monthly AMC hours.", `/amc`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error("❌ Error recalculating AMC hours:", err.message);
+  }
+}
+
 // POST create work log
 router.post("/", verifyToken, checkPermission('can_add_work_log'), async (req, res) => {
   const { ticket_id, start_time, end_time, time_spent, description } = req.body;
@@ -49,85 +161,11 @@ router.post("/", verifyToken, checkPermission('can_add_work_log'), async (req, r
 
     // --- AMC Auto Deduction Logic ---
     if (ticket_id) {
-      const ticket = await prisma.ticket.findUnique({ where: { id: Number(ticket_id) } });
-      if (ticket && ticket.customer_id) {
-        // Find customer and their active AMC contract
-        const customer = await prisma.customer.findUnique({
-          where: { id: ticket.customer_id }
-        });
-
-        if (customer && customer.type === "AMC") {
-          const activeContract = await prisma.contractAMC.findFirst({
-            where: {
-              customer_id: customer.id,
-              start_date: { lte: new Date() },
-              end_date: { gte: new Date() }
-            },
-            orderBy: { created_at: "desc" }
-          });
-
-          if (activeContract) {
-            // Parse time_spent string to fractional hours
-            let hoursLogged = 0;
-            const timeStr = String(time_spent);
-            const hMatch = timeStr.match(/(\d+)h/);
-            if (hMatch) hoursLogged += parseInt(hMatch[1], 10);
-            const mMatch = timeStr.match(/(\d+)m/);
-            if (mMatch) hoursLogged += parseInt(mMatch[1], 10) / 60;
-
-            if (hoursLogged > 0) {
-              const previousHoursUsed = activeContract.hours_used;
-              const newHoursUsed = previousHoursUsed + hoursLogged;
-              
-              const updatedContract = await prisma.contractAMC.update({
-                where: { id: activeContract.id },
-                data: { hours_used: newHoursUsed }
-              });
-              
-              // 🔔 Overage Alerts (80% and 100%)
-              const limit = activeContract.monthly_hours;
-              const prevPercent = (previousHoursUsed / limit) * 100;
-              const newPercent = (newHoursUsed / limit) * 100;
-
-              if (newPercent >= 100 && prevPercent < 100) {
-                const msg = `Customer ${customer.name} has exceeded their AMC monthly hours (${limit}h).`;
-                await notifyAdmins("amc_limit", "🚨 AMC LIMIT REACHED", msg, `/amc`);
-                if (customer.portal_user_id) {
-                  await sendNotification(customer.portal_user_id, "amc_limit", "⚖️ Service Limit Reached", "You have utilized 100% of your monthly AMC hours. Further work will be billed at extra rates.", `/amc`);
-                }
-              } else if (newPercent >= 80 && prevPercent < 80) {
-                const msg = `Customer ${customer.name} has utilized 80% of their AMC monthly hours.`;
-                await notifyAdmins("amc_warning", "⚠️ AMC Usage Warning", msg, `/amc`);
-                if (customer.portal_user_id) {
-                  await sendNotification(customer.portal_user_id, "amc_warning", "⚖️ Service Usage Alert", "You have utilized 80% of your monthly AMC hours.", `/amc`);
-                }
-              }
-
-              // P1: Generate extra hours billing if exceeded
-              const previousOverage = Math.max(0, previousHoursUsed - limit);
-              const newOverage = Math.max(0, newHoursUsed - limit);
-              const billableOverage = newOverage - previousOverage;
-
-              if (billableOverage > 0 && activeContract.extra_hour_rate > 0) {
-                const amount = billableOverage * activeContract.extra_hour_rate;
-                const monthStr = new Date().toISOString().slice(0, 7); // YYYY-MM
-                
-                await prisma.billing.create({
-                  data: {
-                    customer_id: customer.id,
-                    hours_used: billableOverage,
-                    hourly_rate: activeContract.extra_hour_rate,
-                    total_amount: amount,
-                    month: monthStr
-                  }
-                });
-              }
-            }
-          }
-        }
+      const customerId = await getCustomerIdForTicket(ticket_id);
+      if (customerId) {
+        await recalculateAMCHoursForCustomer(customerId);
       }
     }
-    // --------------------------------
 
     res.status(201).json({ message: "Work log saved!", log });
   } catch (err) {
@@ -154,10 +192,22 @@ router.put("/:id", verifyToken, async (req, res) => {
       if (hoursOld > 24) return res.status(403).json({ message: "Editing locked after 24 hours" });
     }
 
+    const originalCustomerId = log.ticket_id ? await getCustomerIdForTicket(log.ticket_id) : null;
+
     const updated = await prisma.workLog.update({
       where: { id: Number(id) },
       data: { description, start_time, end_time, time_spent }
     });
+
+    const newCustomerId = updated.ticket_id ? await getCustomerIdForTicket(updated.ticket_id) : null;
+
+    if (originalCustomerId) {
+      await recalculateAMCHoursForCustomer(originalCustomerId);
+    }
+    if (newCustomerId && newCustomerId !== originalCustomerId) {
+      await recalculateAMCHoursForCustomer(newCustomerId);
+    }
+
     res.json({ message: "Work log updated!", updated });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -178,9 +228,16 @@ router.delete("/:id", verifyToken, async (req, res) => {
        if (hoursOld > 24) return res.status(403).json({ message: "Cannot delete logs older than 24h" });
     }
 
+    const customerId = log.ticket_id ? await getCustomerIdForTicket(log.ticket_id) : null;
+
     await prisma.workLog.delete({
       where: { id: Number(req.params.id) },
     });
+
+    if (customerId) {
+      await recalculateAMCHoursForCustomer(customerId);
+    }
+
     res.json({ message: "Work log deleted!" });
   } catch (err) {
     console.error("❌ WorkLog DELETE Error:", err.message);
@@ -188,4 +245,5 @@ router.delete("/:id", verifyToken, async (req, res) => {
   }
 });
 
+router.parseTimeSpentToHours = parseTimeSpentToHours;
 module.exports = router;

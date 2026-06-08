@@ -25,7 +25,7 @@ export default function CustomerBilling() {
   };
 
   const totalSpent = billing.reduce((sum, b) => sum + b.total_amount, 0);
-  const pendingAmount = billing.filter(b => !b.invoices[0]?.is_paid).reduce((sum, b) => sum + b.total_amount, 0);
+  const pendingAmount = billing.filter(b => b.invoices[0]?.status !== "Paid").reduce((sum, b) => sum + b.total_amount, 0);
 
   const handleDownloadPDF = async (invoice) => {
     try {

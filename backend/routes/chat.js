@@ -85,7 +85,47 @@ router.get("/contacts", verifyToken, async (req, res) => {
       }
     }
 
-    res.json(uniqueContacts);
+    // Add last message and unread count for each contact
+    const contactsWithMeta = await Promise.all(uniqueContacts.map(async (c) => {
+      const lastMessage = await prisma.chatMessage.findFirst({
+        where: {
+          OR: [
+            { sender_id: userId, receiver_id: c.id },
+            { sender_id: c.id, receiver_id: userId }
+          ]
+        },
+        orderBy: { created_at: "desc" }
+      });
+
+      const unreadCount = await prisma.chatMessage.count({
+        where: {
+          sender_id: c.id,
+          receiver_id: userId,
+          is_read: false
+        }
+      });
+
+      return {
+        ...c,
+        lastMessage: lastMessage ? {
+          message: lastMessage.message,
+          created_at: lastMessage.created_at,
+          sender_id: lastMessage.sender_id,
+          receiver_id: lastMessage.receiver_id,
+          is_read: lastMessage.is_read
+        } : null,
+        unreadCount
+      };
+    }));
+
+    // Sort contacts by last message date desc (contacts with no messages go to the bottom)
+    contactsWithMeta.sort((a, b) => {
+      const aTime = a.lastMessage ? new Date(a.lastMessage.created_at).getTime() : 0;
+      const bTime = b.lastMessage ? new Date(b.lastMessage.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
+
+    res.json(contactsWithMeta);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error fetching contacts" });
@@ -114,6 +154,11 @@ router.get("/:contactId", verifyToken, async (req, res) => {
       data: { is_read: true }
     });
 
+    // Notify sender that their messages have been read (for real-time read receipt tick updates)
+    if (global.io) {
+      global.io.to(`user_${contactId}`).emit("messages_read", { reader_id: userId });
+    }
+
     res.json(messages);
   } catch (err) {
     res.status(500).json({ message: "Error fetching messages: " + err.message, error: String(err) });
@@ -126,6 +171,58 @@ router.post("/:contactId", verifyToken, async (req, res) => {
     const sender_id = req.user.id;
     const receiver_id = parseInt(req.params.contactId);
     const { message } = req.body;
+
+    if (sender_id === receiver_id) {
+      return res.status(400).json({ message: "Cannot send message to yourself." });
+    }
+
+    // Auth check: Validate if the sender is allowed to chat with the receiver
+    const senderRole = req.user.role;
+    let allowed = false;
+
+    if (senderRole === "admin") {
+      allowed = true;
+    } else if (senderRole === "client") {
+      // 1. Check if receiver is admin
+      const receiver = await prisma.user.findUnique({ where: { id: receiver_id } });
+      if (receiver && receiver.role === "admin") {
+        allowed = true;
+      } else {
+        // 2. Check if assigned agent
+        const customer = await prisma.customer.findUnique({ where: { portal_user_id: sender_id } });
+        if (customer) {
+          const ticketLink = await prisma.ticket.findFirst({
+            where: { customer_id: customer.id, agent_id: receiver_id, status: { not: "Closed" } }
+          });
+          const renewalLink = await prisma.renewal.findFirst({
+            where: { customer_id: customer.id, assigned_agent_id: receiver_id }
+          });
+          if (ticketLink || renewalLink) allowed = true;
+        }
+      }
+    } else if (senderRole === "agent") {
+      // 1. Check if receiver is admin
+      const receiver = await prisma.user.findUnique({ where: { id: receiver_id } });
+      if (receiver && receiver.role === "admin") {
+        allowed = true;
+      } else {
+        // 2. Check if assigned client
+        const receiverCustomer = await prisma.customer.findUnique({ where: { portal_user_id: receiver_id } });
+        if (receiverCustomer) {
+          const ticketLink = await prisma.ticket.findFirst({
+            where: { agent_id: sender_id, customer_id: receiverCustomer.id, status: { not: "Closed" } }
+          });
+          const renewalLink = await prisma.renewal.findFirst({
+            where: { assigned_agent_id: sender_id, customer_id: receiverCustomer.id }
+          });
+          if (ticketLink || renewalLink) allowed = true;
+        }
+      }
+    }
+
+    if (!allowed) {
+      return res.status(403).json({ message: "Forbidden: You are not authorized to chat with this contact." });
+    }
 
     if (!message || !message.trim()) {
       return res.status(400).json({ message: "Message cannot be empty." });
