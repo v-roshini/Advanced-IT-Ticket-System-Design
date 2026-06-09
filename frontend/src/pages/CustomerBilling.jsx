@@ -13,10 +13,10 @@ export default function CustomerBilling() {
   const headers = { Authorization: `Bearer ${token}` };
 
   useEffect(() => {
-    fetchBills();
+    fetchBilling();
   }, []);
 
-  const fetchBills = async () => {
+  const fetchBilling = async () => {
     try {
       const res = await axios.get(`${BASE}/api/billing`, { headers });
       setBilling(res.data);
@@ -26,6 +26,38 @@ export default function CustomerBilling() {
 
   const totalSpent = billing.reduce((sum, b) => sum + b.total_amount, 0);
   const pendingAmount = billing.filter(b => b.invoices[0]?.status !== "Paid").reduce((sum, b) => sum + b.total_amount, 0);
+
+  const handlePayOutstanding = async () => {
+    const unpaidRecords = billing.filter(b => b.invoices && b.invoices[0] && b.invoices[0].status !== "Paid");
+
+    if (unpaidRecords.length === 0) {
+      alert("No outstanding balance to pay.");
+      return;
+    }
+
+    const confirmPay = window.confirm(`Proceed to pay the outstanding balance of AED ${pendingAmount.toLocaleString()} via Card Payment?`);
+    if (!confirmPay) return;
+
+    try {
+      setLoading(true);
+      for (const rec of unpaidRecords) {
+        const invoice = rec.invoices[0];
+        const payAmount = invoice.total_amout_with_tax || rec.total_amount;
+        await axios.put(`${BASE}/api/invoices/${invoice.id}/paid`, {
+          method: "Card Payment",
+          amount: payAmount,
+          notes: "Paid via Online Portal"
+        }, { headers });
+      }
+      alert("✅ Outstanding balance paid successfully!");
+      fetchBilling();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to process payment. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleDownloadPDF = async (invoice) => {
     try {
@@ -79,7 +111,12 @@ export default function CustomerBilling() {
              </p>
              <h3 className="text-5xl font-black tracking-tighter">AED {pendingAmount.toLocaleString()}</h3>
            </div>
-           <button className="mt-8 bg-red-600 text-white font-black py-4 rounded-3xl text-[10px] uppercase tracking-widest shadow-xl shadow-red-100 hover:scale-105 transition">Pay Outstanding Now</button>
+            <button 
+              onClick={handlePayOutstanding}
+              className="mt-8 bg-red-600 text-white font-black py-4 rounded-3xl text-[10px] uppercase tracking-widest shadow-xl shadow-red-100 hover:scale-105 transition"
+            >
+              Pay Outstanding Now
+            </button>
         </div>
 
         <div className="bg-white p-8 rounded-[40px] border border-gray-100 shadow-sm flex flex-col justify-between">

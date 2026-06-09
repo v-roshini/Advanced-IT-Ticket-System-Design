@@ -97,10 +97,50 @@ router.post("/", verifyToken, checkPermission('can_generate_invoice'), async (re
   }
 });
 
-router.put("/:id/paid", verifyToken, checkPermission('can_generate_invoice'), async (req, res) => {
+router.put("/:id/paid", verifyToken, async (req, res) => {
   try {
     const { amount, method, notes } = req.body;
     const invoiceId = Number(req.params.id);
+
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        billing: {
+          include: { customer: true }
+        }
+      }
+    });
+
+    if (!invoice) return res.status(404).json({ message: "Invoice not found" });
+
+    // Validate permission:
+    // 1. Admin gets bypass
+    // 2. Client gets allowed if the invoice belongs to their customer profile
+    // 3. Otherwise (agent, etc.), check if they have 'can_generate_invoice' permission
+    let isAllowed = false;
+    if (req.user.role === 'admin') {
+      isAllowed = true;
+    } else if (req.user.role === 'client') {
+      const customer = await prisma.customer.findFirst({
+        where: { portal_user_id: req.user.id }
+      });
+      if (customer && invoice.billing?.customer_id === customer.id) {
+        isAllowed = true;
+      }
+    } else {
+      const permission = await prisma.permission.findFirst({
+        where: {
+          role: req.user.role,
+          permission_key: 'can_generate_invoice',
+          is_enabled: true
+        }
+      });
+      if (permission) isAllowed = true;
+    }
+
+    if (!isAllowed) {
+      return res.status(403).json({ message: "Access Denied: You do not have permission to pay or update this invoice." });
+    }
 
     await prisma.invoice.update({
       where: { id: invoiceId },
