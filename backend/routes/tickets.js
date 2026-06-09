@@ -110,7 +110,7 @@ router.get("/:id", verifyToken, async (req, res) => {
 });
 
 // CREATE ticket
-router.post("/", verifyToken, checkPermission('can_create_ticket'), upload.array("attachments", 5), async (req, res) => {
+router.post("/", verifyToken, upload.array("attachments", 5), checkPermission('can_create_ticket'), async (req, res) => {
     let { customer_id, customer_name, company, issue_title, description, priority, category, project, source, parent_id } = req.body;
     const ticket_no = "TKT" + Date.now().toString().slice(-6);
 

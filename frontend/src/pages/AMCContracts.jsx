@@ -5,6 +5,7 @@ import axios from "axios";
 const BASE = process.env.REACT_APP_URL;
 
 export default function AMCContracts() {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
   const [contracts, setContracts] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
@@ -49,6 +50,17 @@ export default function AMCContracts() {
     try {
       const res = await axios.get(`${BASE}/customers`, { headers });
       setCustomers(res.data);
+
+      if (user.role === 'client') {
+        const myCust = res.data.find(c => c.portal_user_id === user.id);
+        if (myCust) {
+          setForm(prev => ({
+            ...prev,
+            customer_id: String(myCust.id),
+            company_name: myCust.company || ""
+          }));
+        }
+      }
     } catch (err) {
       console.error("Fetch customers error:", err);
     }
@@ -87,18 +99,34 @@ export default function AMCContracts() {
   };
 
   const resetForm = () => {
-    setForm({
-      customer_id: "",
-      company_name: "",
-      start_date: "",
-      end_date: "",
-      monthly_hours: 10,
-      priority_sla: "",
-      extra_hour_rate: 0,
-      monthly_base_fee: 0,
-      rollover_hours: false,
-      scope_of_services: "",
-    });
+    if (user.role === 'client') {
+      const myCust = customers.find(c => c.portal_user_id === user.id);
+      setForm({
+        customer_id: myCust ? String(myCust.id) : "",
+        company_name: myCust?.company || "",
+        start_date: "",
+        end_date: "",
+        monthly_hours: 10,
+        priority_sla: "",
+        extra_hour_rate: 0,
+        monthly_base_fee: 0,
+        rollover_hours: false,
+        scope_of_services: "",
+      });
+    } else {
+      setForm({
+        customer_id: "",
+        company_name: "",
+        start_date: "",
+        end_date: "",
+        monthly_hours: 10,
+        priority_sla: "",
+        extra_hour_rate: 0,
+        monthly_base_fee: 0,
+        rollover_hours: false,
+        scope_of_services: "",
+      });
+    }
   };
 
   const handleDelete = async (id) => {
@@ -292,7 +320,7 @@ export default function AMCContracts() {
                   
                   <div className="flex items-center gap-3">
                     {c.attachment_url ? (
-                      <a href={`${BASE}${c.attachment_url}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded">
+                      <a href={c.attachment_url.startsWith("http") ? c.attachment_url : `${BASE}${c.attachment_url.startsWith("/uploads") ? c.attachment_url : "/uploads/" + c.attachment_url}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-blue-600 font-bold hover:underline bg-blue-50 px-2 py-1 rounded">
                         <FiFileText /> PDF
                       </a>
                     ) : (
@@ -334,40 +362,50 @@ export default function AMCContracts() {
 
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
 
-              {/* Customer */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label>
-                <select
-                  required
-                  className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                  value={form.customer_id}
-                  onChange={(e) => {
-                    const selected = customers.find((c) => c.id === Number(e.target.value));
-                    setForm({
-                      ...form,
-                      customer_id: e.target.value,
-                      company_name: selected?.company || "",
-                    });
-                  }}>
-                  <option value="">Select Customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} – {c.company}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Customer & Company Details */}
+              {user.role !== 'client' ? (
+                <>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Customer *</label>
+                    <select
+                      required
+                      className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                      value={form.customer_id}
+                      onChange={(e) => {
+                        const selected = customers.find((c) => c.id === Number(e.target.value));
+                        setForm({
+                          ...form,
+                          customer_id: e.target.value,
+                          company_name: selected?.company || "",
+                        });
+                      }}>
+                      <option value="">Select Customer</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} – {c.company}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Company Name */}
-              <div>
-                <label className="text-sm font-medium text-gray-700 mb-1 block">Company Name</label>
-                <input
-                  type="text"
-                  placeholder="Auto-filled from customer"
-                  className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
-                  value={form.company_name}
-                  onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
-              </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 mb-1 block">Company Name</label>
+                    <input
+                      type="text"
+                      placeholder="Auto-filled from customer"
+                      className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-blue-400"
+                      value={form.company_name}
+                      onChange={(e) => setForm({ ...form, company_name: e.target.value })} />
+                  </div>
+                </>
+              ) : (
+                <div className="bg-gray-50 p-4 rounded-xl border">
+                  <label className="text-sm font-bold text-gray-700 mb-1 block">Customer Profile</label>
+                  <p className="text-sm text-blue-900 font-bold">
+                    {customers.find(c => String(c.id) === form.customer_id)?.name || "Resolving customer profile..."} {form.company_name ? `(${form.company_name})` : ""}
+                  </p>
+                </div>
+              )}
 
               {/* Dates */}
               <div className="grid grid-cols-2 gap-4">

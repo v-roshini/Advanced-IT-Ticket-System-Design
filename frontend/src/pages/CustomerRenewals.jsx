@@ -25,6 +25,22 @@ export default function CustomerRenewals() {
     finally { setLoading(false); }
   };
 
+  const handleRenew = async (r) => {
+    const curExp = new Date(r.expiry_date);
+    const SUGGESTED_EXP = new Date(curExp.setFullYear(curExp.getFullYear() + 1)).toISOString().split('T')[0];
+
+    const newDate = prompt("Enter new expiry date (YYYY-MM-DD):", SUGGESTED_EXP);
+    if (!newDate) return;
+    
+    try {
+      await axios.post(`${BASE}/renewals/${r.id}/renew`, { new_expiry_date: newDate, new_cost: r.cost }, { headers });
+      alert("✅ Asset renewed successfully!");
+      fetchRenewals();
+    } catch (err) {
+      alert(err.response?.data?.message || "Renewal failed");
+    }
+  };
+
   const getStatus = (expiryDate) => {
     const today = new Date();
     const expiry = new Date(expiryDate);
@@ -83,9 +99,9 @@ export default function CustomerRenewals() {
                           </div>
                           <button 
                             className="bg-blue-600 text-white font-black px-6 py-3 rounded-2xl text-[9px] uppercase tracking-widest hover:bg-black transition shadow-lg shadow-blue-100 hover:shadow-none"
-                            onClick={() => navigate(`/tickets/create?subject=Renewal Request: ${r.asset_name}&category=Renewal`)}
+                            onClick={() => handleRenew(r)}
                           >
-                            Request Renewal
+                            Renew Asset
                           </button>
                        </div>
                     </div>

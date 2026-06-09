@@ -196,6 +196,31 @@ router.post("/", verifyToken, async (req, res) => {
         renewal_asset_id: asset.id
       },
     });
+    if (category === "amc") {
+      const existingContract = await prisma.contractAMC.findFirst({
+        where: { customer_id: Number(customer_id) },
+        orderBy: { end_date: "desc" },
+      });
+      if (!existingContract) {
+        await prisma.contractAMC.create({
+          data: {
+            customer_id: Number(customer_id),
+            start_date: purchase_date ? new Date(purchase_date) : new Date(),
+            end_date: new Date(expiry_date),
+            monthly_hours: 10,
+            hours_used: 0,
+            monthly_base_fee: cost ? parseFloat(cost) / 12 : 0,
+          },
+        });
+      }
+
+      // Update customer type to AMC
+      await prisma.customer.update({
+        where: { id: Number(customer_id) },
+        data: { type: "AMC" },
+      });
+    }
+
     res.status(201).json(renewal);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -250,6 +275,24 @@ router.put("/:id", verifyToken, async (req, res) => {
           notes: renewal.notes
         }
       });
+    }
+
+    // Sync to ContractAMC if category is amc
+    if (renewal.category === "amc") {
+      const latestContract = await prisma.contractAMC.findFirst({
+        where: { customer_id: renewal.customer_id },
+        orderBy: { end_date: "desc" }
+      });
+      if (latestContract) {
+        await prisma.contractAMC.update({
+          where: { id: latestContract.id },
+          data: {
+            end_date: renewal.expiry_date,
+            start_date: renewal.purchase_date || undefined,
+            monthly_base_fee: renewal.cost ? renewal.cost / 12 : undefined,
+          }
+        });
+      }
     }
 
     res.json(renewal);
@@ -326,6 +369,54 @@ router.post("/:id/renew", verifyToken, async (req, res) => {
         },
       });
       console.log(`✅ Overage/Renewal billing created for ${updated.asset_name}: ₹${updated.cost}`);
+    }
+
+    // Sync to ContractAMC if category is amc
+    if (updated.category === "amc") {
+      const latestContract = await prisma.contractAMC.findFirst({
+        where: { customer_id: updated.customer_id },
+        orderBy: { end_date: "desc" }
+      });
+      
+      const newEndDate = new Date(new_expiry_date);
+      
+      if (latestContract) {
+        const oldEndDate = new Date(latestContract.end_date);
+        const newStartDate = new Date(oldEndDate);
+        newStartDate.setDate(newStartDate.getDate() + 1);
+
+        const parsedStart = new Date(newStartDate.setHours(0, 0, 0, 0));
+        const parsedEnd = new Date(newEndDate.setHours(23, 59, 59, 999));
+
+        await prisma.contractAMC.update({
+          where: { id: latestContract.id },
+          data: {
+            start_date: parsedStart,
+            end_date: parsedEnd,
+            hours_used: 0, // Reset hours used on renewal
+            monthly_base_fee: new_cost ? parseFloat(new_cost) / 12 : latestContract.monthly_base_fee,
+          }
+        });
+      } else {
+        const parsedStart = new Date(new Date().setHours(0, 0, 0, 0));
+        const parsedEnd = new Date(newEndDate.setHours(23, 59, 59, 999));
+        await prisma.contractAMC.create({
+          data: {
+            customer_id: updated.customer_id,
+            start_date: parsedStart,
+            end_date: parsedEnd,
+            monthly_hours: 10,
+            hours_used: 0,
+            monthly_base_fee: new_cost ? parseFloat(new_cost) / 12 : 0,
+          }
+        });
+      }
+
+      // Update customer type to AMC
+      await prisma.customer.update({
+        where: { id: updated.customer_id },
+        data: { type: "AMC" }
+      });
     }
 
     res.json({ message: "Asset renewed and expiry updated", updated });

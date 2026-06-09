@@ -4,7 +4,7 @@ import axios from "axios";
 import {
   FiPlus, FiFileText, FiDollarSign, FiZap, FiCheckCircle,
   FiClock, FiAlertCircle, FiMessageSquare, FiTrendingUp,
-  FiRefreshCw, FiArrowRight, FiStar, FiBell
+  FiRefreshCw, FiArrowRight, FiStar, FiBell, FiX, FiServer
 } from "react-icons/fi";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -36,6 +36,17 @@ export default function CustomerDashboard() {
   const [billing, setBilling] = useState([]);
   const [renewals, setRenewals] = useState([]);
   const [amc, setAmc] = useState(null);
+  const [myCustomerId, setMyCustomerId] = useState(null);
+  const [showAssetModal, setShowAssetModal] = useState(false);
+  const [assetForm, setAssetForm] = useState({
+    asset_name: "",
+    asset_type: "Domain",
+    purchase_date: "",
+    expiry_date: "",
+    cost: "",
+    supplier: "",
+    notes: ""
+  });
   const [loading, setLoading] = useState(true);
 
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -48,20 +59,49 @@ export default function CustomerDashboard() {
 
   const fetchData = async () => {
     try {
-      const [tRes, bRes, rRes, cRes] = await Promise.all([
+      const [tRes, bRes, rRes, cRes, custRes] = await Promise.all([
         axios.get(`${BASE}/tickets`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE}/api/billing`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE}/renewals`, { headers }).catch(() => ({ data: [] })),
         axios.get(`${BASE}/amc`, { headers }).catch(() => ({ data: [] })),
+        axios.get(`${BASE}/customers`, { headers }).catch(() => ({ data: [] })),
       ]);
       setTickets(tRes.data);
       setBilling(bRes.data);
       setRenewals(rRes.data);
       setAmc(cRes.data[0] || null);
+
+      const myCustomer = custRes.data.find(c => c.portal_user_id === user.id);
+      setMyCustomerId(myCustomer?.id || null);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddAsset = async (e) => {
+    e.preventDefault();
+    if (!myCustomerId) {
+      alert("Error: Customer profile not found.");
+      return;
+    }
+    try {
+      await axios.post(`${BASE}/customers/${myCustomerId}/assets`, assetForm, { headers });
+      alert("✅ Asset added and renewals synced!");
+      setShowAssetModal(false);
+      setAssetForm({
+        asset_name: "",
+        asset_type: "Domain",
+        purchase_date: "",
+        expiry_date: "",
+        cost: "",
+        supplier: "",
+        notes: ""
+      });
+      fetchData(); // reload dashboard data
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to add asset");
     }
   };
 
@@ -421,10 +461,11 @@ export default function CustomerDashboard() {
       {/* ── Quick Actions ── */}
       <div>
         <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4">Quick Actions</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {[
             { label: "Raise New Ticket",    icon: <FiPlus size={22}/>,         color: "from-blue-500 to-blue-600",     action: () => navigate("/tickets/create"),      desc: "Create a support request" },
             { label: "My Tickets",          icon: <FiFileText size={22}/>,      color: "from-violet-500 to-purple-600", action: () => navigate("/customer/tickets"),     desc: "View your history" },
+            { label: "Add New Asset",       icon: <FiServer size={22}/>,        color: "from-blue-500 to-indigo-600",   action: () => setShowAssetModal(true),          desc: "Add a digital asset" },
             { label: "Renewals",            icon: <FiRefreshCw size={22}/>,     color: "from-orange-400 to-orange-500", action: () => navigate("/customer/renewals"),    desc: "Manage digital assets" },
             { label: "Billing & Invoices",  icon: <FiDollarSign size={22}/>,    color: "from-emerald-500 to-green-600", action: () => navigate("/customer/billing"),     desc: "View statements" },
           ].map(q => (
@@ -445,6 +486,68 @@ export default function CustomerDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Asset Modal */}
+      {showAssetModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-lg mx-4">
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-xl font-bold text-blue-900">Add Renewal Asset</h3>
+              <button onClick={() => setShowAssetModal(false)} className="text-gray-400 hover:text-gray-600">
+                <FiX size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAddAsset} className="flex flex-col gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Asset Name *</label>
+                <input type="text" required placeholder="e.g. example.com" className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-blue-400" value={assetForm.asset_name} onChange={e => setAssetForm({...assetForm, asset_name: e.target.value})} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Asset Type</label>
+                  <select className="w-full border rounded-lg px-3 py-2 text-sm outline-none" value={assetForm.asset_type} onChange={e => setAssetForm({...assetForm, asset_type: e.target.value})}>
+                    <option value="Domain">Domain</option>
+                    <option value="Hosting">Hosting</option>
+                    <option value="SSL Certificate">SSL Certificate</option>
+                    <option value="Software License">Software License</option>
+                    <option value="Firewall">Firewall</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Cost (AED)</label>
+                  <input type="number" step="0.01" placeholder="0.00" className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-blue-400" value={assetForm.cost} onChange={e => setAssetForm({...assetForm, cost: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Purchase Date</label>
+                  <input type="date" className="w-full border rounded-lg px-3 py-2 text-sm outline-none" value={assetForm.purchase_date} onChange={e => setAssetForm({...assetForm, purchase_date: e.target.value})} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 block mb-1">Expiry Date *</label>
+                  <input type="date" required className="w-full border rounded-lg px-3 py-2 text-sm outline-none" value={assetForm.expiry_date} onChange={e => setAssetForm({...assetForm, expiry_date: e.target.value})} />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Supplier / Registrar</label>
+                <input type="text" placeholder="e.g. GoDaddy" className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-blue-400" value={assetForm.supplier} onChange={e => setAssetForm({...assetForm, supplier: e.target.value})} />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Notes</label>
+                <textarea rows="2" placeholder="Any additional notes..." className="w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-blue-400 resize-none" value={assetForm.notes} onChange={e => setAssetForm({...assetForm, notes: e.target.value})} />
+              </div>
+
+              <button type="submit" className="w-full bg-blue-700 text-white font-medium py-2.5 rounded-lg hover:bg-blue-800 transition">Save Asset</button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

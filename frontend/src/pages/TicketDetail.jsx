@@ -459,7 +459,7 @@ export default function TicketDetail() {
               ) : (
                 ticket.attachments?.map((atk) => (
                   <a key={atk.id} 
-                    href={`${process.env.REACT_APP_URL}/uploads/${atk.file_path}`} 
+                    href={atk.file_path.startsWith("http") ? atk.file_path : `${process.env.REACT_APP_URL}${atk.file_path.startsWith("/uploads") ? atk.file_path : "/uploads/" + atk.file_path}`} 
                     target="_blank" 
                     rel="noreferrer"
                     className="flex items-center gap-2 p-2 rounded-lg border border-transparent hover:border-blue-200 hover:bg-blue-50 transition"

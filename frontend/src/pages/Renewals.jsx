@@ -42,6 +42,23 @@ export default function Renewals() {
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState(null);
 
+  // AMC Contract Renewal State
+  const [amcContracts, setAmcContracts] = useState([]);
+  const [showAmcModal, setShowAmcModal] = useState(false);
+  const [selectedAmcId, setSelectedAmcId] = useState("");
+  const [amcForm, setAmcForm] = useState({
+    customer_id: "",
+    company_name: "",
+    start_date: "",
+    end_date: "",
+    monthly_hours: 10,
+    priority_sla: "",
+    extra_hour_rate: 0,
+    monthly_base_fee: 0,
+    rollover_hours: false,
+    scope_of_services: "",
+  });
+
   const [form, setForm] = useState({
     customer_id: "",
     category: "domain",
@@ -76,12 +93,14 @@ export default function Renewals() {
 
   const fetchSupportData = async () => {
     try {
-      const [cRes, aRes] = await Promise.all([
+      const [cRes, aRes, amcRes] = await Promise.all([
         axios.get(`${BASE}/customers`, { headers }),
         axios.get(`${BASE}/agents`, { headers }),
+        axios.get(`${BASE}/amc`, { headers }),
       ]);
       setCustomers(cRes.data);
       setAgents(aRes.data);
+      setAmcContracts(amcRes.data);
     } catch (err) { console.error(err); }
   };
 
@@ -123,6 +142,79 @@ export default function Renewals() {
       notes: "",
       assigned_agent_id: "",
     });
+  };
+
+  const handleAmcSelectChange = (e) => {
+    const amcId = e.target.value;
+    setSelectedAmcId(amcId);
+    if (!amcId) {
+      setAmcForm({
+        customer_id: "",
+        company_name: "",
+        start_date: "",
+        end_date: "",
+        monthly_hours: 10,
+        priority_sla: "",
+        extra_hour_rate: 0,
+        monthly_base_fee: 0,
+        rollover_hours: false,
+        scope_of_services: "",
+      });
+      return;
+    }
+    const contract = amcContracts.find(c => c.id === Number(amcId));
+    if (contract) {
+      const oldEndDate = new Date(contract.end_date);
+      const suggestedStart = new Date(oldEndDate);
+      suggestedStart.setDate(suggestedStart.getDate() + 1);
+      const suggestedStartStr = suggestedStart.toISOString().split('T')[0];
+
+      const suggestedEnd = new Date(suggestedStart);
+      suggestedEnd.setFullYear(suggestedEnd.getFullYear() + 1);
+      const suggestedEndStr = suggestedEnd.toISOString().split('T')[0];
+
+      setAmcForm({
+        customer_id: contract.customer_id,
+        company_name: contract.company_name || contract.customer?.company || "",
+        start_date: suggestedStartStr,
+        end_date: suggestedEndStr,
+        monthly_hours: contract.monthly_hours,
+        priority_sla: contract.priority_sla || "",
+        extra_hour_rate: contract.extra_hour_rate || 0,
+        monthly_base_fee: contract.monthly_base_fee || 0,
+        rollover_hours: contract.rollover_hours || false,
+        scope_of_services: contract.scope_of_services || "",
+      });
+    }
+  };
+
+  const handleAmcRenewSubmit = async (e) => {
+    e.preventDefault();
+    if (new Date(amcForm.end_date) <= new Date(amcForm.start_date)) {
+      alert("End date must be after start date!");
+      return;
+    }
+    try {
+      await axios.put(`${BASE}/amc/${selectedAmcId}`, amcForm, { headers });
+      alert("✅ AMC Contract Renewed Successfully!");
+      setShowAmcModal(false);
+      setSelectedAmcId("");
+      setAmcForm({
+        customer_id: "",
+        company_name: "",
+        start_date: "",
+        end_date: "",
+        monthly_hours: 10,
+        priority_sla: "",
+        extra_hour_rate: 0,
+        monthly_base_fee: 0,
+        rollover_hours: false,
+        scope_of_services: "",
+      });
+      fetchSupportData();
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to renew AMC contract");
+    }
   };
 
   const handleRenew = async (r) => {
@@ -172,6 +264,9 @@ export default function Renewals() {
             <button onClick={() => setView("list")} className={`p-2 rounded transition ${view === 'list' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}><FiList size={18} /></button>
             <button onClick={() => setView("calendar")} className={`p-2 rounded transition ${view === 'calendar' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-50'}`}><FiCalendar size={18} /></button>
           </div>
+          <button onClick={() => { setShowAmcModal(true); }} className="bg-blue-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-800 transition flex items-center gap-2 shadow-lg shadow-blue-100">
+            <FiRepeat /> Renew AMC
+          </button>
           <button onClick={() => { setEditId(null); resetForm(); setShowModal(true); }} className="bg-blue-700 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-800 transition flex items-center gap-2 shadow-lg shadow-blue-100">
             <FiPlus /> New Renewal
           </button>
@@ -342,7 +437,7 @@ export default function Renewals() {
               <div className="col-span-1">
                 <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Category *</label>
                 <select required className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                  {Object.keys(categoryIcons).map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
+                  {Object.keys(categoryIcons).filter(cat => cat !== 'amc').map(cat => <option key={cat} value={cat}>{cat.toUpperCase()}</option>)}
                 </select>
               </div>
               <div className="col-span-2">
@@ -404,6 +499,109 @@ export default function Renewals() {
                 <button type="submit" className="flex-1 bg-blue-700 text-white font-black py-4 rounded-2xl hover:bg-blue-900 transition shadow-lg shadow-blue-200 uppercase tracking-widest text-xs">Save Asset Data</button>
                 <button type="button" onClick={() => setShowModal(false)} className="flex-1 bg-gray-100 text-gray-500 font-bold py-4 rounded-2xl hover:bg-gray-200 transition uppercase tracking-widest text-xs">Cancel</button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Renew AMC Modal */}
+      {showAmcModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-2xl overflow-y-auto max-h-[90vh] border border-white/20">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h3 className="text-2xl font-black text-blue-900">Renew AMC Contract</h3>
+                <p className="text-gray-400 text-xs font-medium">Select an existing AMC contract to set up the next renewed term</p>
+              </div>
+              <button onClick={() => { setShowAmcModal(false); setSelectedAmcId(""); }} className="bg-gray-50 p-2 rounded-full text-gray-400 hover:text-red-500 transition"><FiTrash2 size={20} /></button>
+            </div>
+
+            <form onSubmit={handleAmcRenewSubmit} className="grid grid-cols-2 gap-6">
+              
+              {/* Select AMC Contract */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block font-mono">Select AMC Contract *</label>
+                <select 
+                  required 
+                  className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition font-bold" 
+                  value={selectedAmcId} 
+                  onChange={handleAmcSelectChange}
+                >
+                  <option value="">-- Choose AMC Contract to Renew --</option>
+                  {amcContracts.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.company_name || c.customer?.company || c.customer?.name} (Expires: {new Date(c.end_date).toLocaleDateString('en-US', {day:'2-digit', month:'short', year:'numeric', timeZone: 'UTC'})})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedAmcId && (
+                <>
+                  {/* Company Info */}
+                  <div className="col-span-2 bg-blue-50 border border-blue-100 rounded-2xl p-5 flex flex-col gap-1">
+                    <p className="text-[10px] font-mono font-black text-blue-500 uppercase tracking-widest">Active Client Info</p>
+                    <p className="text-sm font-black text-blue-900">
+                      {customers.find(cust => cust.id === amcForm.customer_id)?.name} – {amcForm.company_name}
+                    </p>
+                  </div>
+
+                  {/* Dates */}
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">New Start Date *</label>
+                    <input required type="date" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none font-bold" value={amcForm.start_date} onChange={e => setAmcForm({ ...amcForm, start_date: e.target.value })} />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">New End Date *</label>
+                    <input required type="date" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none font-bold" value={amcForm.end_date} onChange={e => setAmcForm({ ...amcForm, end_date: e.target.value })} />
+                  </div>
+
+                  {/* Hours & SLA */}
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Monthly Hours Pool</label>
+                    <input type="number" step="any" min="0" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={amcForm.monthly_hours} onChange={e => setAmcForm({ ...amcForm, monthly_hours: parseFloat(e.target.value) || 0 })} />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Priority SLA Target</label>
+                    <select className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none focus:ring-2 focus:ring-blue-100 transition" value={amcForm.priority_sla} onChange={e => setAmcForm({ ...amcForm, priority_sla: e.target.value })}>
+                      <option value="">Select SLA Target</option>
+                      <option value="Critical">Critical (2hr)</option>
+                      <option value="High">High (4hr)</option>
+                      <option value="Standard">Standard (8hr)</option>
+                    </select>
+                  </div>
+
+                  {/* Pricing Fields */}
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Base Retainer Fee (AED/mo)</label>
+                    <input type="number" step="any" min="0" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={amcForm.monthly_base_fee} onChange={e => setAmcForm({ ...amcForm, monthly_base_fee: parseFloat(e.target.value) || 0 })} />
+                  </div>
+                  <div className="col-span-1">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Overage Rate (AED/hr)</label>
+                    <input type="number" step="any" min="0" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none" value={amcForm.extra_hour_rate} onChange={e => setAmcForm({ ...amcForm, extra_hour_rate: parseFloat(e.target.value) || 0 })} />
+                  </div>
+
+                  {/* Checkboxes & Scope */}
+                  <div className="col-span-2 flex items-center gap-3 mt-2">
+                    <div className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" id="amc_rollover" className="sr-only peer" checked={amcForm.rollover_hours} onChange={e => setAmcForm({ ...amcForm, rollover_hours: e.target.checked })} />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </div>
+                    <label htmlFor="amc_rollover" className="text-xs font-bold text-gray-600">Allow Rollover Unused Hours</label>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-1 block">Scope of Services Include/Exclude *</label>
+                    <textarea rows="3" placeholder="What is explicitly included & excluded in this AMC term?" className="w-full bg-gray-50 border rounded-xl p-3.5 text-sm outline-none resize-none" value={amcForm.scope_of_services} onChange={e => setAmcForm({ ...amcForm, scope_of_services: e.target.value })}></textarea>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="col-span-2 flex gap-4 mt-6">
+                    <button type="submit" className="flex-1 bg-blue-700 text-white font-black py-4 rounded-2xl hover:bg-blue-900 transition shadow-lg shadow-blue-200 uppercase tracking-widest text-xs">Execute AMC Renewal</button>
+                    <button type="button" onClick={() => { setShowAmcModal(false); setSelectedAmcId(""); }} className="flex-1 bg-gray-100 text-gray-500 font-bold py-4 rounded-2xl hover:bg-gray-200 transition uppercase tracking-widest text-xs">Cancel</button>
+                  </div>
+                </>
+              )}
             </form>
           </div>
         </div>

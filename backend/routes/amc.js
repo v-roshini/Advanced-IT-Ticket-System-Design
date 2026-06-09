@@ -3,6 +3,7 @@ const router = express.Router();
 const prisma = require("../config/prisma");
 const { verifyToken } = require("../middleware/authMiddleware");
 const { uploadS3 } = require("../services/s3Service");
+const { syncContractToRenewal, deleteContractRenewal } = require("../services/amcSyncService");
 
 const upload = uploadS3("amc-contracts");
 
@@ -123,11 +124,44 @@ router.post("/", verifyToken, async (req, res) => {
             include: { customer: { select: { id: true, name: true, company: true, portal_user_id: true } } }
         });
 
+        // Sync to renewals table in real-time
+        await syncContractToRenewal(finalContract);
+
         console.log("✅ AMC Contract added successfully!");
         res.status(201).json({ message: "Contract added!", contract: finalContract });
     } catch (err) {
         console.error("❌ AMC POST Error:", err);
         res.status(500).json({ message: "Database error: " + err.message });
+    }
+});
+
+// PUT update/renew contract
+router.put("/:id", verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { customer_id, company_name, start_date, end_date, monthly_hours, priority_sla, extra_hour_rate, monthly_base_fee, rollover_hours, scope_of_services } = req.body;
+
+    try {
+        const contract = await prisma.contractAMC.update({
+            where: { id: Number(id) },
+            data: {
+                customer_id: customer_id ? Number(customer_id) : undefined,
+                company_name: company_name ? String(company_name).trim().toUpperCase() : undefined,
+                start_date: start_date ? new Date(start_date) : undefined,
+                end_date: end_date ? new Date(end_date) : undefined,
+                monthly_hours: monthly_hours !== undefined ? Number(monthly_hours) : undefined,
+                priority_sla: priority_sla !== undefined ? priority_sla : undefined,
+                extra_hour_rate: extra_hour_rate !== undefined ? Number(extra_hour_rate) : undefined,
+                monthly_base_fee: monthly_base_fee !== undefined ? Number(monthly_base_fee) : undefined,
+                rollover_hours: rollover_hours !== undefined ? Boolean(rollover_hours) : undefined,
+                scope_of_services: scope_of_services !== undefined ? scope_of_services : undefined,
+                hours_used: 0, // Reset hours used on renewal
+            }
+        });
+        // Sync to renewals table in real-time
+        await syncContractToRenewal(contract);
+        res.json({ message: "AMC Contract updated/renewed successfully", contract });
+    } catch (err) {
+        res.status(500).json({ message: err.message });
     }
 });
 
@@ -189,6 +223,13 @@ router.post("/:id/upload", verifyToken, upload.single("pdf"), async (req, res) =
 // DELETE contract
 router.delete("/:id", verifyToken, async (req, res) => {
     try {
+        const contract = await prisma.contractAMC.findUnique({
+            where: { id: Number(req.params.id) }
+        });
+        if (contract) {
+            // Delete corresponding renewal from renewals tracking in real-time
+            await deleteContractRenewal(contract.customer_id);
+        }
         await prisma.contractAMC.delete({ where: { id: Number(req.params.id) } });
         res.json({ message: "Contract deleted!" });
     } catch (err) {

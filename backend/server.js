@@ -76,6 +76,14 @@ server.listen(PORT, async () => {
         process.exit(1);
     }
 
+    // --- 🔄 RUN RECONCILIATION FOR AMC CONTRACTS & RENEWALS ---
+    try {
+        const { reconcileExistingContracts } = require("./services/amcSyncService");
+        await reconcileExistingContracts();
+    } catch (err) {
+        console.error("❌ Startup Reconciliation Error:", err.message);
+    }
+
     // --- 🎯 REGISTER SOCKET LISTENERS ONLY AFTER DB IS READY ---
     io.on("connection", (socket) => {
         console.log("🔌 New Client Connected:", socket.id);
