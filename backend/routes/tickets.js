@@ -184,10 +184,9 @@ router.post("/", verifyToken, checkPermission('can_create_ticket'), upload.array
             ticketData.attachments = {
                 create: req.files.map(file => ({
                     file_name: file.originalname,
-                    file_path: file.location || file.key,
+                    file_path: file.location || file.key || (file.filename ? "/uploads/tickets/" + file.filename : (file.path ? "/" + file.path.replace(/\\/g, "/") : "")),
                     file_type: file.mimetype
                 }))
-
             };
         }
 
@@ -531,7 +530,7 @@ router.post("/:id/attachments", verifyToken, upload.array("attachments", 5), asy
             data: req.files.map(file => ({
                 ticket_id: ticketId,
                 file_name: file.originalname,
-                file_path: file.location || file.key,
+                file_path: file.location || file.key || (file.filename ? "/uploads/tickets/" + file.filename : (file.path ? "/" + file.path.replace(/\\/g, "/") : "")),
                 file_type: file.mimetype
             }))
         });

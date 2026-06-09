@@ -161,7 +161,7 @@ router.put("/:id/hours", verifyToken, async (req, res) => {
 router.post("/:id/upload", verifyToken, upload.single("pdf"), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-        const filePath = req.file.location || req.file.key;
+        const filePath = req.file.location || req.file.key || (req.file.filename ? "/uploads/amc-contracts/" + req.file.filename : (req.file.path ? "/" + req.file.path.replace(/\\/g, "/") : ""));
 
 
         const contract = await prisma.contractAMC.update({
