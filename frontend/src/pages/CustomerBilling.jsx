@@ -27,6 +27,37 @@ export default function CustomerBilling() {
   const totalSpent = billing.reduce((sum, b) => sum + b.total_amount, 0);
   const pendingAmount = billing.filter(b => b.invoices[0]?.status !== "Paid").reduce((sum, b) => sum + b.total_amount, 0);
 
+  // Dynamic Current Month Billing calculation
+  const now = new Date();
+  const currentYearMonth = now.toISOString().slice(0, 7); // "YYYY-MM"
+  const currentMonthLong = now.toLocaleString("en-US", { month: "long" }).toLowerCase();
+  const currentMonthShort = now.toLocaleString("en-US", { month: "short" }).toLowerCase();
+
+  const currentMonthBilling = billing
+    .filter(b => {
+      const isCurrentMonthDate = b.created_at && 
+        new Date(b.created_at).getMonth() === now.getMonth() && 
+        new Date(b.created_at).getFullYear() === now.getFullYear();
+        
+      const isCurrentMonthString = b.month && (
+        b.month.toLowerCase() === currentYearMonth ||
+        b.month.toLowerCase() === currentMonthLong ||
+        b.month.toLowerCase() === currentMonthShort
+      );
+      
+      return isCurrentMonthDate || isCurrentMonthString;
+    })
+    .reduce((sum, b) => sum + (b.total_amount || 0), 0);
+
+  // Dynamic Billing Cycle Reset remaining days calculation
+  const getDaysRemainingInCycle = () => {
+    const today = new Date();
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const diffTime = nextMonth.getTime() - today.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+  const daysRemaining = getDaysRemainingInCycle();
+
   const handlePayOutstanding = async () => {
     const unpaidRecords = billing.filter(b => b.invoices && b.invoices[0] && b.invoices[0].status !== "Paid");
 
@@ -124,9 +155,11 @@ export default function CustomerBilling() {
              <p className="text-gray-400 text-[10px] uppercase font-black tracking-widest mb-4 italic flex items-center gap-2">
                 <FiTrendingUp className="text-green-500" /> Current Month Billing
              </p>
-             <h3 className="text-4xl font-black text-gray-800 tracking-tighter italic">AED {billing[0]?.total_amount.toLocaleString() || "0"}</h3>
+             <h3 className="text-4xl font-black text-gray-800 tracking-tighter italic">AED {currentMonthBilling.toLocaleString()}</h3>
            </div>
-           <p className="mt-8 text-gray-300 text-[10px] font-bold uppercase tracking-widest">Billing cycle resets in 12 days</p>
+           <p className="mt-8 text-gray-300 text-[10px] font-bold uppercase tracking-widest">
+             Billing cycle resets in {daysRemaining} {daysRemaining === 1 ? "day" : "days"}
+           </p>
         </div>
       </div>
 
